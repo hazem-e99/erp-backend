@@ -3,22 +3,16 @@ services:
     name: erp-api
     env: node
     plan: free
-    buildCommand: npm install && npx nest build
+    buildCommand: npm install && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
         value: production
-      - key: MONGODB_URI
-        fromDatabase:
-          name: erp-mongodb
-          property: connectionString
+      - key: MONGO_URI
+        value: mongodb+srv://ERP:123@erp.z2yi2co.mongodb.net/erp?retryWrites=true&w=majority
       - key: JWT_SECRET
-        generateValue: true
-      - key: PORT
-        value: 3001
-
-databases:
-  - name: erp-mongodb
-    engine: mongodb
-    plan: free
-    ipAllowList: []
+        value: erp-system-jwt-secret-key-2026-production
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        value: "*"
