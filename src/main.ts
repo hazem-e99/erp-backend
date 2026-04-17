@@ -23,13 +23,21 @@ async function bootstrap() {
     }),
   );
 
-  // CORS — support multiple origins (web + mobile)
-  const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  // CORS — support explicit allow-list and wildcard from env
+  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
+  const corsOrigins = rawCorsOrigin
     .split(',')
-    .map((o) => o.trim());
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const allowAnyOrigin = corsOrigins.includes('*');
+
   app.enableCors({
-    origin: corsOrigins,
+    // `true` reflects request origin and supports wildcard intent safely with credentials.
+    origin: allowAnyOrigin ? true : corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200,
   });
 
   // API prefix
