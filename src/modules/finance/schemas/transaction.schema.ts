@@ -1,39 +1,28 @@
+/**
+ * Legacy Transaction schema stub — kept for backward compatibility with DashboardService.
+ * New code should use Payment, Expense, and Revenue schemas directly.
+ */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
-export type TransactionDocument = Transaction & Document;
+export type TransactionDocument = HydratedDocument<Transaction>;
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, collection: 'transactions' })
 export class Transaction {
-  @Prop({ required: true, enum: ['income', 'expense'] })
-  type: string;
+  @Prop({ required: true })
+  type!: string; // 'income' | 'expense'
 
   @Prop({ required: true })
-  amount: number;
+  amount!: number;
 
-  @Prop({ required: true })
-  category: string;
+  @Prop({ default: 'completed' })
+  status!: string;
+
+  @Prop({ type: Date })
+  date!: Date;
 
   @Prop({ default: '' })
-  description: string;
-
-  @Prop({ required: true })
-  date: Date;
-
-  @Prop({ type: Types.ObjectId, ref: 'Project', default: null })
-  projectId: Types.ObjectId;
-
-  @Prop({ type: Types.ObjectId, ref: 'Client', default: null })
-  clientId: Types.ObjectId;
-
-  @Prop({ default: null })
-  reference: string;
-
-  @Prop({ default: 'completed', enum: ['pending', 'completed', 'cancelled'] })
-  status: string;
-
-  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
-  createdBy: Types.ObjectId;
+  description!: string;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

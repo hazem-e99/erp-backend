@@ -13,10 +13,10 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
-import { FinanceModule } from './modules/finance/finance.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
 import { HrModule } from './modules/hr/hr.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -40,10 +40,10 @@ import { HrModule } from './modules/hr/hr.module';
     AttendanceModule,
     LeavesModule,
     PayrollModule,
-    FinanceModule,
     DashboardModule,
     AnnouncementsModule,
     HrModule,
+    FinanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
