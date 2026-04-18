@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
@@ -7,6 +7,7 @@ import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
+import { FinanceErrors } from '../finance.exceptions';
 
 @Injectable()
 export class PaymentsService {
@@ -25,9 +26,15 @@ export class PaymentsService {
    */
   async create(dto: CreatePaymentDto): Promise<{ payment: PaymentDocument; overflow: number }> {
     const installment = await this.installmentModel.findById(dto.installmentId);
-    if (!installment) throw new NotFoundException('Installment not found');
+    if (!installment) throw FinanceErrors.INSTALLMENT_NOT_FOUND();
     if (installment.status === InstallmentStatus.PAID) {
-      throw new BadRequestException('Installment already fully paid');
+      throw FinanceErrors.INSTALLMENT_ALREADY_PAID();
+    }
+
+    // Block payment on cancelled subscription
+    const subscription = await this.subscriptionModel.findById(installment.subscriptionId);
+    if (subscription?.status === SubscriptionStatus.CANCELLED) {
+      throw FinanceErrors.INSTALLMENT_CANCELLED_SUB();
     }
 
     const remaining = installment.amount - installment.paidAmount;
@@ -53,7 +60,7 @@ export class PaymentsService {
     );
 
     if (!updatedInstallment) {
-      throw new BadRequestException('Payment conflict: installment was updated concurrently');
+      throw FinanceErrors.PAYMENT_CONFLICT();
     }
 
     // Create payment record
@@ -76,7 +83,7 @@ export class PaymentsService {
       $inc: { paidAmount: applied },
     });
 
-    const subscription = await this.subscriptionModel.findById(dto.subscriptionId);
+    // Re-fetch subscription (subscription was fetched above)
     if (subscription && subscription.status === SubscriptionStatus.PENDING) {
       subscription.status = SubscriptionStatus.ACTIVE;
       await subscription.save();

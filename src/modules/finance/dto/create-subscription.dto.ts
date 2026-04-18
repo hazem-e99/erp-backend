@@ -1,15 +1,17 @@
 import {
-  IsString, IsNumber, IsEnum, IsDateString,
-  IsOptional, Min, IsArray, ArrayMinSize, ArrayMaxSize,
+  IsString, IsEnum, IsDateString,
+  IsOptional, IsArray, ArrayMinSize, ArrayMaxSize,
   IsNotEmpty, IsMongoId, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InstallmentPlan, PlanType } from '../schemas/subscription.schema';
+import { IsFinancialAmount } from '../validators/finance.validators';
 
 export class InstallmentItemDto {
   @Type(() => Number)
-  @IsNumber()
-  @Min(0.01)
+  @IsFinancialAmount(1_000_000, {
+    message: 'Each installment amount must be greater than 0 and cannot exceed 1,000,000 (max 2 decimal places)',
+  })
   amount: number;
 
   @IsDateString()
@@ -30,8 +32,9 @@ export class CreateSubscriptionDto {
 
   /** Required only for full payment plan. Derived from installmentItems for other plans. */
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsFinancialAmount(1_000_000, {
+    message: 'Total price must be greater than 0 and cannot exceed 1,000,000 (max 2 decimal places)',
+  })
   totalPrice?: number;
 
   @IsDateString()

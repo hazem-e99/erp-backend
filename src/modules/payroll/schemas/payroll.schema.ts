@@ -27,7 +27,22 @@ export class Payroll {
   overtimePay: number;
 
   @Prop({ default: 0 })
+  maxKpi: number;
+
+  @Prop({ default: 0 })
+  kpiPercentage: number;
+
+  @Prop({ default: 0 })
+  kpiAmount: number;
+
+  @Prop({ default: 0 })
   netSalary: number;
+
+  @Prop({ default: null })
+  transferScreenshot: string;
+
+  @Prop({ default: null })
+  transactionNumber: string;
 
   @Prop({ default: 0 })
   workingDays: number;
@@ -46,6 +61,9 @@ export class Payroll {
 
   @Prop({ type: Object, default: {} })
   breakdown: Record<string, any>;
+
+  @Prop({ default: false })
+  isRecordedAsExpense: boolean;
 }
 
 export const PayrollSchema = SchemaFactory.createForClass(Payroll);

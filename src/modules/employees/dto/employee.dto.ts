@@ -30,6 +30,11 @@ export class CreateEmployeeDto {
   @IsNumber()
   baseSalary: number;
 
+  @ApiPropertyOptional({ example: 1000 })
+  @IsOptional()
+  @IsNumber()
+  maxKpi?: number;
+
   @ApiProperty({ example: '2024-01-15' })
   @IsDateString()
   dateOfJoining: string;
@@ -72,17 +77,6 @@ export class CreateEmployeeDto {
   @IsArray()
   @IsString({ each: true })
   contractTypes?: string[];
-
-  // Legacy single fields (backward compat)
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  department?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  position?: string;
 }
 
 export class UpdateEmployeeDto {
@@ -120,17 +114,12 @@ export class UpdateEmployeeDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
+  maxKpi?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   age?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  department?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  position?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

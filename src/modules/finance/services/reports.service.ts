@@ -172,4 +172,27 @@ export class ReportsService {
       cashFlowChart: cashFlowMonthly,
     };
   }
+
+  /**
+   * Delete all finance data (subscriptions, installments, payments, revenue, expenses)
+   * ⚠️ WARNING: This action is irreversible!
+   */
+  async deleteAllFinanceData() {
+    const results = await Promise.all([
+      this.subscriptionModel.deleteMany({}),
+      this.installmentModel.deleteMany({}),
+      this.paymentModel.deleteMany({}),
+      this.revenueModel.deleteMany({}),
+      this.expenseModel.deleteMany({}),
+    ]);
+
+    return {
+      subscriptionsDeleted: results[0].deletedCount,
+      installmentsDeleted: results[1].deletedCount,
+      paymentsDeleted: results[2].deletedCount,
+      revenueDeleted: results[3].deletedCount,
+      expensesDeleted: results[4].deletedCount,
+      totalDeleted: results.reduce((sum, r) => sum + r.deletedCount, 0),
+    };
+  }
 }

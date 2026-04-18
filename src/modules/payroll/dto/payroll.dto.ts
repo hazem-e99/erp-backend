@@ -26,6 +26,16 @@ export class GeneratePayrollDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  maxKpi?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  kpiPercentage?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   notes?: string;
 }
@@ -40,6 +50,26 @@ export class UpdatePayrollDto {
   @IsOptional()
   @IsNumber()
   deductions?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  maxKpi?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  kpiPercentage?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  transferScreenshot?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  transactionNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

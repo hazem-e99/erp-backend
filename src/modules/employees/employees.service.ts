@@ -93,11 +93,9 @@ export class EmployeesService {
       address: dto.address || null,
       emergencyContact: dto.emergencyContact || null,
       whatsappNumber: dto.whatsappNumber || null,
-      positions: dto.positions || (dto.position ? [dto.position] : []),
-      departments: dto.departments || (dto.department ? [dto.department] : []),
+      positions: dto.positions || [],
+      departments: dto.departments || [],
       contractTypes: dto.contractTypes || [],
-      department: dto.department || (dto.departments?.[0] || null),
-      position: dto.position || (dto.positions?.[0] || null),
     } as any);
 
     return this.employeeModel.findById(employee._id).populate({ path: 'userId', select: '-password' });

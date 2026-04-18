@@ -23,6 +23,9 @@ export class Employee {
   @Prop({ required: true, default: 0 })
   baseSalary: number;
 
+  @Prop({ default: 0 })
+  maxKpi: number;
+
   @Prop({ required: true })
   dateOfJoining: Date;
 
@@ -47,13 +50,6 @@ export class Employee {
 
   @Prop({ type: [String], default: [] })
   contractTypes: string[];
-
-  // Legacy single fields kept for backward compat
-  @Prop({ default: null })
-  department: string;
-
-  @Prop({ default: null })
-  position: string;
 
   @Prop({ default: 'active', enum: ['active', 'inactive', 'terminated'] })
   status: string;

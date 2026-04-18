@@ -1,13 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { addMonths, addDays } from 'date-fns';
+import { addMonths } from 'date-fns';
 import { Subscription, SubscriptionDocument, SubscriptionStatus, PlanType, InstallmentPlan } from '../schemas/subscription.schema';
 import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
 import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
 import { CreateSubscriptionDto, InstallmentItemDto } from '../dto/create-subscription.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
+import { FinanceErrors } from '../finance.exceptions';
+import { roundCents } from '../validators/finance.validators';
 
 @Injectable()
 export class SubscriptionsService {
@@ -51,17 +53,37 @@ export class SubscriptionsService {
 
     if (needsItems) {
       if (!dto.installmentItems?.length) {
-        throw new BadRequestException('installmentItems is required for this payment plan');
+        throw FinanceErrors.SUBSCRIPTION_MISSING_ITEMS();
       }
       if (dto.installmentPlan === InstallmentPlan.SPLIT_2 && dto.installmentItems.length !== 2) {
-        throw new BadRequestException('Split payment plan requires exactly 2 installment items');
+        throw FinanceErrors.SUBSCRIPTION_SPLIT2_REQUIRES_2();
       }
-      // Derive totalPrice from items
-      dto.totalPrice = parseFloat(
-        dto.installmentItems.reduce((s, item) => s + item.amount, 0).toFixed(2),
+
+      // Normalize each item amount (guard against client-side float artefacts)
+      dto.installmentItems = dto.installmentItems.map((item) => ({
+        ...item,
+        amount: roundCents(item.amount),
+      }));
+
+      // Derive and validate total
+      dto.totalPrice = roundCents(
+        dto.installmentItems.reduce((s, item) => s + item.amount, 0),
       );
+
+      if (dto.totalPrice <= 0) {
+        throw FinanceErrors.SUBSCRIPTION_INVALID_TOTAL();
+      }
+      if (dto.totalPrice > 1_000_000) {
+        throw new BadRequestException({
+          message: 'Total subscription value cannot exceed 1,000,000',
+          code: 'SUBSCRIPTION_TOTAL_TOO_LARGE',
+        });
+      }
     } else if (!dto.totalPrice) {
       throw new BadRequestException('totalPrice is required for full payment plan');
+    } else {
+      // Normalize full-plan price
+      dto.totalPrice = roundCents(dto.totalPrice);
     }
 
     const startDate = new Date(dto.startDate);
@@ -138,7 +160,7 @@ export class SubscriptionsService {
       subscriptionId: sub._id,
       clientId: sub.clientId,
       clientName: sub.clientName,
-      amount: parseFloat(item.amount.toFixed(2)),
+      amount: roundCents(item.amount),   // normalized
       paidAmount: 0,
       dueDate: new Date(item.dueDate),
       status: InstallmentStatus.PENDING,
@@ -161,7 +183,24 @@ export class SubscriptionsService {
       this.subscriptionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       this.subscriptionModel.countDocuments(filter),
     ]);
-    return { data, total, page, limit };
+
+    // Enrich each subscription with installment counts (paid/total)
+    const enrichedData = await Promise.all(
+      data.map(async (sub) => {
+        // Convert _id to ObjectId for proper matching
+        const subscriptionId = new Types.ObjectId(sub._id);
+        const installments = await this.installmentModel.find({ subscriptionId }).lean();
+        const paidCount = installments.filter((i) => i.status === InstallmentStatus.PAID).length;
+        const totalCount = installments.length;
+        return {
+          ...sub,
+          paidInstallmentsCount: paidCount,
+          totalInstallmentsCount: totalCount,
+        };
+      }),
+    );
+
+    return { data: enrichedData, total, page, limit };
   }
 
   async findOne(id: string): Promise<SubscriptionDocument> {
@@ -173,7 +212,10 @@ export class SubscriptionsService {
   async cancel(id: string, reason: string): Promise<SubscriptionDocument> {
     const sub = await this.findOne(id);
     if (sub.status === SubscriptionStatus.CANCELLED) {
-      throw new BadRequestException('Already cancelled');
+      throw FinanceErrors.SUBSCRIPTION_ALREADY_CANCELLED();
+    }
+    if (sub.status === SubscriptionStatus.COMPLETED) {
+      throw FinanceErrors.SUBSCRIPTION_COMPLETED_CANCEL();
     }
 
     sub.status = SubscriptionStatus.CANCELLED;

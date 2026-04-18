@@ -69,7 +69,7 @@ export class HrService {
     const result = allEmployees.map(emp => {
       const record = records.find(r => r.employeeId?._id?.toString() === emp._id.toString());
       return {
-        employee: { _id: emp._id, name: emp.name, employeeId: emp.employeeId, department: emp.department || emp.departments?.[0] },
+        employee: { _id: emp._id, name: emp.name, employeeId: emp.employeeId, department: emp.departments?.[0] || 'N/A' },
         status: record?.checkIn ? (record.lateMinutes > 0 ? 'late' : 'present') : 'absent',
         checkIn: record?.checkIn || null,
         checkOut: record?.checkOut || null,
@@ -150,7 +150,7 @@ export class HrService {
       }
 
       return {
-        employee: { _id: emp._id, name: emp.name, employeeId: emp.employeeId, department: emp.department },
+        employee: { _id: emp._id, name: emp.name, employeeId: emp.employeeId, department: emp.departments?.[0] || 'N/A' },
         presentDays: present,
         absentDays: Math.max(0, expectedDays - present),
         totalWorkingHours: parseFloat(totalHours.toFixed(2)),

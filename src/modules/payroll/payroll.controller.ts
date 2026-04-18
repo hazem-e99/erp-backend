@@ -1,5 +1,8 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PayrollService } from './payroll.service';
 import { GeneratePayrollDto, UpdatePayrollDto } from './dto/payroll.dto';
@@ -36,6 +39,22 @@ export class PayrollController {
     return this.payrollService.getMyPayroll(userId);
   }
 
+  // IMPORTANT: static routes must come BEFORE `/:id` to avoid ParseObjectIdPipe collisions
+  @Get('pending-expenses-amount')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({ summary: 'Get total amount of paid payrolls not recorded as expenses' })
+  async getPendingExpensesAmount() {
+    const total = await this.payrollService.getPendingExpensesAmount();
+    return { total };
+  }
+
+  @Post('mark-as-expenses')
+  @RequirePermissions('payroll:create')
+  @ApiOperation({ summary: 'Mark all paid payrolls as expenses' })
+  markAsExpenses() {
+    return this.payrollService.markAsExpenses();
+  }
+
   @Get(':id')
   @RequirePermissions('payroll:read')
   @ApiOperation({ summary: 'Get payroll by ID' })
@@ -55,5 +74,39 @@ export class PayrollController {
   @ApiOperation({ summary: 'Update payroll' })
   update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdatePayrollDto) {
     return this.payrollService.update(id, dto);
+  }
+
+  @Post(':id/upload-screenshot')
+  @RequirePermissions('payroll:update')
+  @UseInterceptors(
+    FileInterceptor('screenshot', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'payroll'),
+        filename: (req, file, cb) => {
+          const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+          cb(null, uniqueName);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          return cb(new Error('Only image files allowed'), false);
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    }),
+  )
+  @ApiOperation({ summary: 'Upload transfer screenshot' })
+  async uploadScreenshot(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('transactionNumber') transactionNumber?: string,
+  ) {
+    const screenshotPath = file ? `/uploads/payroll/${file.filename}` : undefined;
+    return this.payrollService.update(id, {
+      transferScreenshot: screenshotPath,
+      transactionNumber: transactionNumber || undefined,
+      status: 'paid',
+    });
   }
 }
