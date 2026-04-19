@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
 
 export type SubscriptionDocument = Subscription & Document;
 
@@ -36,6 +37,15 @@ export class Subscription {
   @Prop({ required: true, min: 0 })
   totalPrice!: number;
 
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001 })
+  exchangeRate!: number;
+
+  @Prop({ required: true, min: 0 })
+  baseTotalPrice!: number;
+
   @Prop({ type: Date, required: true })
   startDate!: Date;
 
@@ -52,7 +62,7 @@ export class Subscription {
   customInstallments!: number;
 
   @Prop({ default: 0 })
-  paidAmount!: number;
+  paidAmount!: number; // Always in base currency
 
   @Prop({ required: true })
   description!: string;
@@ -71,5 +81,5 @@ SubscriptionSchema.index({ status: 1, endDate: 1 });
 SubscriptionSchema.index({ createdAt: -1 });
 
 SubscriptionSchema.virtual('remainingAmount').get(function () {
-  return this.totalPrice - this.paidAmount;
+  return this.baseTotalPrice - this.paidAmount;
 });

@@ -1,5 +1,7 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString, IsEmail, IsArray, IsEnum, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString, IsEmail, IsArray, IsEnum, MinLength, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { SupportedCurrency } from '../../finance/constants/currency.constants';
+import { MaxDecimalPlaces } from '../../finance/validators/finance.validators';
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'Ahmed Hassan' })
@@ -25,6 +27,19 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsNumber()
   age?: number;
+
+  @ApiPropertyOptional({ example: 'EGP', enum: ['EGP', 'USD', 'SAR', 'EUR', 'GBP', 'AED'] })
+  @IsOptional()
+  @IsEnum(SupportedCurrency)
+  currency?: SupportedCurrency;
+
+  @ApiPropertyOptional({ example: 1, description: 'Exchange rate to base currency (EGP)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  @Max(10000)
+  @MaxDecimalPlaces(4)
+  exchangeRate?: number;
 
   @ApiProperty({ example: 5000 })
   @IsNumber()
@@ -104,6 +119,19 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ enum: ['EGP', 'USD', 'SAR', 'EUR', 'GBP', 'AED'] })
+  @IsOptional()
+  @IsEnum(SupportedCurrency)
+  currency?: SupportedCurrency;
+
+  @ApiPropertyOptional({ description: 'Exchange rate to base currency (EGP)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  @Max(10000)
+  @MaxDecimalPlaces(4)
+  exchangeRate?: number;
 
   // Admin-only fields (enforced in service)
   @ApiPropertyOptional()

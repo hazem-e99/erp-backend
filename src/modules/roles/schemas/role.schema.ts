@@ -21,7 +21,7 @@ export const ALL_PERMISSIONS = [
   // Payroll
   'payroll:read', 'payroll:create', 'payroll:update',
   // Finance
-  'finance:read', 'finance:create', 'finance:update', 'finance:delete',
+  'finance:read', 'finance:create', 'finance:update', 'finance:delete', 'finance:delete-all',
   // Roles
   'roles:read', 'roles:create', 'roles:update', 'roles:delete',
   // Dashboard
@@ -30,6 +30,16 @@ export const ALL_PERMISSIONS = [
   'announcements:send',
   // HR Module
   'hr:dashboard', 'hr:attendance', 'hr:leaves', 'hr:reports',
+  // Audit
+  'audit:read',
+  // Departments
+  'departments:read', 'departments:create', 'departments:update', 'departments:delete',
+  // Positions
+  'positions:read', 'positions:create', 'positions:update', 'positions:delete',
+  // Contract Types
+  'contract-types:read', 'contract-types:create', 'contract-types:update', 'contract-types:delete',
+  // Reminders
+  'reminders:read', 'reminders:create', 'reminders:update', 'reminders:delete',
   // Export / Import
   'export:data', 'import:data',
 ];

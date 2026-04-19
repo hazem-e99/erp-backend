@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
@@ -7,36 +9,41 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('departments')
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
   @Post()
+  @RequirePermissions('departments:create')
   @ApiOperation({ summary: 'Create department' })
   create(@Body() dto: CreateDepartmentDto) {
     return this.departmentsService.create(dto);
   }
 
   @Get()
+  @RequirePermissions('departments:read')
   @ApiOperation({ summary: 'Get all departments' })
   findAll() {
     return this.departmentsService.findAll();
   }
 
   @Get(':id')
+  @RequirePermissions('departments:read')
   @ApiOperation({ summary: 'Get department by ID' })
   findOne(@Param('id', ParseObjectIdPipe) id: string) {
     return this.departmentsService.findOne(id);
   }
 
   @Put(':id')
+  @RequirePermissions('departments:update')
   @ApiOperation({ summary: 'Update department' })
   update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateDepartmentDto) {
     return this.departmentsService.update(id, dto);
   }
 
   @Delete(':id')
+  @RequirePermissions('departments:delete')
   @ApiOperation({ summary: 'Delete department' })
   remove(@Param('id', ParseObjectIdPipe) id: string) {
     return this.departmentsService.remove(id);

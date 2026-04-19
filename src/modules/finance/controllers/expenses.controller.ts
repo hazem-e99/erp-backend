@@ -3,6 +3,8 @@ import {
   UseGuards, UseInterceptors, UploadedFile, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../../common/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -14,11 +16,12 @@ import { ParseObjectIdPipe } from '../../../common/pipes/parse-objectid.pipe';
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 @Controller('finance/expenses')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
 
   @Post()
+  @RequirePermissions('finance:create')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('attachment', {
@@ -48,11 +51,13 @@ export class ExpensesController {
   }
 
   @Get()
+  @RequirePermissions('finance:read')
   findAll(@Query() query: PaginationQueryDto) {
     return this.expensesService.findAll(query);
   }
 
   @Get('by-category')
+  @RequirePermissions('finance:read')
   getByCategory(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return this.expensesService.getByCategory(
       startDate ? new Date(startDate) : undefined,
@@ -61,12 +66,14 @@ export class ExpensesController {
   }
 
   @Get('chart')
+  @RequirePermissions('finance:read')
   getMonthlyChart(@Query('year') year?: string) {
     const y = year ? parseInt(year, 10) : new Date().getFullYear();
     return this.expensesService.getMonthlyChart(y);
   }
 
   @Delete(':id')
+  @RequirePermissions('finance:delete')
   delete(@Param('id', ParseObjectIdPipe) id: string) {
     return this.expensesService.delete(id);
   }

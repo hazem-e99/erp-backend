@@ -21,6 +21,66 @@ export function hasTwoDecimalsOrLess(value: number): boolean {
   return Math.abs(roundCents(value) - value) < 1e-9;
 }
 
+/**
+ * Calculate base amount (in base currency) from original amount and exchange rate.
+ * This is the SINGLE SOURCE OF TRUTH for currency conversion.
+ * 
+ * @param amount - Original amount in source currency
+ * @param exchangeRate - Exchange rate (sourceAmount × rate = baseAmount)
+ * @returns Amount converted to base currency, rounded to 2 decimals
+ * 
+ * @example
+ * calculateBaseAmount(100, 15.5) // 1550.00 (100 USD × 15.5 = 1550 EGP)
+ * calculateBaseAmount(99.99, 15.5) // 1549.85 (99.99 × 15.5 = 1549.845 → 1549.85)
+ */
+export function calculateBaseAmount(amount: number, exchangeRate: number): number {
+  return roundCents(amount * exchangeRate);
+}
+
+/**
+ * Check if a number has at most N decimal places
+ */
+function hasMaxDecimalPlaces(value: number, maxPlaces: number): boolean {
+  if (!isFinite(value) || isNaN(value)) return false;
+  const multiplier = Math.pow(10, maxPlaces);
+  return Math.abs(Math.round(value * multiplier) - value * multiplier) < 1e-9;
+}
+
+/**
+ * Custom validator to check maximum decimal places.
+ * 
+ * Usage:
+ *   @MaxDecimalPlaces(4)  → allows up to 4 decimal places
+ *   @MaxDecimalPlaces(2)  → allows up to 2 decimal places
+ */
+export function MaxDecimalPlaces(
+  maxPlaces: number,
+  validationOptions?: ValidationOptions,
+) {
+  return function (object: Record<string, any>, propertyName: string) {
+    registerDecorator({
+      name: 'maxDecimalPlaces',
+      target: object.constructor,
+      propertyName,
+      constraints: [maxPlaces],
+      options: validationOptions,
+      validator: {
+        validate(value: any, args: ValidationArguments): boolean {
+          if (typeof value !== 'number') return true; // Let other validators handle type
+          return hasMaxDecimalPlaces(value, args.constraints[0]);
+        },
+        defaultMessage(args: ValidationArguments): string {
+          const max = args.constraints[0] as number;
+          return `${args.property} must have at most ${max} decimal place${max === 1 ? '' : 's'}`;
+        },
+      },
+    });
+  };
+}
+
+// Re-export BASE_CURRENCY from constants for convenience
+export { BASE_CURRENCY } from '../constants/currency.constants';
+
 // ─── @IsFinancialAmount decorator ─────────────────────────────────────────
 
 /**

@@ -74,7 +74,7 @@ export class RevenueService {
           status: RevenueStatus.RECOGNIZED,
         },
       },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
     return result[0]?.total ?? 0;
   }
@@ -95,7 +95,7 @@ export class RevenueService {
             month: { $month: '$recognitionDate' },
             status: '$status',
           },
-          total: { $sum: '$amount' },
+          total: { $sum: '$baseAmount' }, // Use baseAmount
         },
       },
     ]);
@@ -124,7 +124,7 @@ export class RevenueService {
     }
     const result = await this.revenueModel.aggregate([
       { $match: match },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
     return result[0]?.total ?? 0;
   }

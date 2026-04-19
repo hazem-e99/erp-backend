@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { RemindersService } from './reminders.service';
 import { EmailService } from '../email/email.service';
 import { CreateReminderDto, UpdateReminderDto } from './dto/reminder.dto';
@@ -17,7 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('reminders')
 @Controller('reminders')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class RemindersController {
   constructor(
     private readonly remindersService: RemindersService,
@@ -25,24 +27,28 @@ export class RemindersController {
   ) {}
 
   @Post()
+  @RequirePermissions('reminders:create')
   @ApiOperation({ summary: 'Create a new reminder' })
   create(@Body() createReminderDto: CreateReminderDto, @CurrentUser('userId') userId: string) {
     return this.remindersService.create(createReminderDto, userId);
   }
 
   @Get()
+  @RequirePermissions('reminders:read')
   @ApiOperation({ summary: 'Get all reminders for current user' })
   findAll(@CurrentUser('userId') userId: string) {
     return this.remindersService.findAll(userId);
   }
 
   @Get(':id')
+  @RequirePermissions('reminders:read')
   @ApiOperation({ summary: 'Get a specific reminder' })
   findOne(@Param('id') id: string, @CurrentUser('userId') userId: string) {
     return this.remindersService.findOne(id, userId);
   }
 
   @Put(':id')
+  @RequirePermissions('reminders:update')
   @ApiOperation({ summary: 'Update a reminder' })
   update(
     @Param('id') id: string,
@@ -53,6 +59,7 @@ export class RemindersController {
   }
 
   @Delete(':id')
+  @RequirePermissions('reminders:delete')
   @ApiOperation({ summary: 'Delete a reminder' })
   remove(@Param('id') id: string, @CurrentUser('userId') userId: string) {
     return this.remindersService.remove(id, userId);

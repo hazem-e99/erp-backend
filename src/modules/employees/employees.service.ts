@@ -6,6 +6,8 @@ import { Employee, EmployeeDocument } from './schemas/employee.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto, UpdateProfileDto, ChangePasswordDto, AdminResetPasswordDto } from './dto/employee.dto';
+import { calculateBaseAmount } from '../finance/validators/finance.validators';
+import { BASE_CURRENCY } from '../finance/constants/currency.constants';
 
 @Injectable()
 export class EmployeesService {
@@ -81,13 +83,23 @@ export class EmployeesService {
     } as any);
 
     // Create Employee profile linked to user
+    const currency = dto.currency || BASE_CURRENCY;
+    const exchangeRate = dto.exchangeRate || 1;
+    const baseBaseSalary = calculateBaseAmount(dto.baseSalary, exchangeRate);
+    const baseMaxKpi = calculateBaseAmount(dto.maxKpi || 0, exchangeRate);
+
     const employee = await this.employeeModel.create({
       userId: user._id,
       employeeId: dto.employeeId,
       name: dto.name,
       emailAddress: dto.emailAddress,
       age: dto.age || null,
+      currency,
+      exchangeRate,
       baseSalary: dto.baseSalary,
+      maxKpi: dto.maxKpi || 0,
+      baseBaseSalary,
+      baseMaxKpi,
       dateOfJoining: dto.dateOfJoining,
       dateOfBirth: dto.dateOfBirth || null,
       address: dto.address || null,
@@ -105,16 +117,34 @@ export class EmployeesService {
    * Admin update – can change salary, role, departments, etc.
    */
   async update(id: string, dto: UpdateEmployeeDto) {
-    const emp = await this.employeeModel.findByIdAndUpdate(id, dto, { new: true })
-      .populate({ path: 'userId', select: '-password' });
+    const emp = await this.employeeModel.findById(id);
     if (!emp) throw new NotFoundException('Employee not found');
+
+    // Calculate base amounts if currency fields change
+    const updateData: any = { ...dto };
+    
+    const newCurrency = dto.currency !== undefined ? dto.currency : emp.currency;
+    const newExchangeRate = dto.exchangeRate !== undefined ? dto.exchangeRate : emp.exchangeRate;
+    const newBaseSalary = dto.baseSalary !== undefined ? dto.baseSalary : emp.baseSalary;
+    const newMaxKpi = dto.maxKpi !== undefined ? dto.maxKpi : emp.maxKpi;
+
+    // Recalculate base amounts if any relevant field changed
+    if (dto.baseSalary !== undefined || dto.exchangeRate !== undefined || dto.currency !== undefined) {
+      updateData.baseBaseSalary = calculateBaseAmount(newBaseSalary, newExchangeRate);
+    }
+    if (dto.maxKpi !== undefined || dto.exchangeRate !== undefined || dto.currency !== undefined) {
+      updateData.baseMaxKpi = calculateBaseAmount(newMaxKpi, newExchangeRate);
+    }
+
+    const updatedEmp = await this.employeeModel.findByIdAndUpdate(id, updateData, { new: true })
+      .populate({ path: 'userId', select: '-password' });
 
     // Sync name to User if changed
     if (dto.name) {
-      await this.userModel.findByIdAndUpdate(emp.userId, { name: dto.name });
+      await this.userModel.findByIdAndUpdate(updatedEmp!.userId, { name: dto.name });
     }
 
-    return emp;
+    return updatedEmp;
   }
 
   /**

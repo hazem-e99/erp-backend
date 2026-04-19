@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
 
 export type RevenueDocument = Revenue & Document;
 
@@ -22,6 +23,15 @@ export class Revenue {
 
   @Prop({ required: true, min: 0 })
   amount!: number;
+
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001 })
+  exchangeRate!: number;
+
+  @Prop({ required: true, min: 0 })
+  baseAmount!: number;
 
   @Prop({ type: Date, required: true })
   recognitionDate!: Date;

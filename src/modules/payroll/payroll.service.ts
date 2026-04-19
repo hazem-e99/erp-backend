@@ -7,6 +7,8 @@ import { Attendance, AttendanceDocument } from '../attendance/schemas/attendance
 import { Leave, LeaveDocument } from '../leaves/schemas/leave.schema';
 import { Expense, ExpenseDocument } from '../finance/schemas/expense.schema';
 import { GeneratePayrollDto, UpdatePayrollDto } from './dto/payroll.dto';
+import { calculateBaseAmount } from '../finance/validators/finance.validators';
+import { BASE_CURRENCY } from '../finance/constants/currency.constants';
 
 @Injectable()
 export class PayrollService {
@@ -59,11 +61,16 @@ export class PayrollService {
       throw new ConflictException('No working days in this month — cannot calculate payroll');
     }
 
+    // Get currency from employee
+    const currency = employee.currency || 'EGP';
+    const exchangeRate = employee.exchangeRate || 1;
+
+    // All calculations in original currency first
     const baseSalary = employee.baseSalary;
     const dailyRate = baseSalary / workingDays;
     const hourlyRate = dailyRate / 8;
 
-    // Calculate overtime pay
+    // Calculate overtime pay (in original currency)
     const overtimeHours = totalOvertimeMinutes / 60;
     const overtimePay = parseFloat((overtimeHours * hourlyRate * this.OVERTIME_MULTIPLIER).toFixed(2));
 
@@ -83,12 +90,21 @@ export class PayrollService {
     const bonuses = dto.bonuses || 0;
     const deductions = dto.deductions || 0; // Manual deductions only
 
-    // Calculate KPI amount
-    const maxKpi = dto.maxKpi || 0;
+    // Calculate KPI amount (in original currency)
+    const maxKpi = dto.maxKpi || employee.maxKpi || 0;
     const kpiPercentage = dto.kpiPercentage || 0;
     const kpiAmount = parseFloat(((maxKpi * kpiPercentage) / 100).toFixed(2));
 
-    const netSalary = parseFloat((baseSalary + bonuses + overtimePay - deductions + kpiAmount).toFixed(2));
+    // Calculate base currency amounts for all financial values
+    const baseBaseSalary = calculateBaseAmount(baseSalary, exchangeRate);
+    const baseBonuses = calculateBaseAmount(bonuses, exchangeRate);
+    const baseDeductions = calculateBaseAmount(deductions, exchangeRate);
+    const baseOvertimePay = calculateBaseAmount(overtimePay, exchangeRate);
+    const baseMaxKpi = calculateBaseAmount(maxKpi, exchangeRate);
+    const baseKpiAmount = calculateBaseAmount(kpiAmount, exchangeRate);
+
+    // Net salary is sum of all base amounts (always in base currency)
+    const netSalary = parseFloat((baseBaseSalary + baseBonuses + baseOvertimePay - baseDeductions + baseKpiAmount).toFixed(2));
 
     const breakdown = {
       baseSalary,
@@ -116,6 +132,8 @@ export class PayrollService {
       employeeId: dto.employeeId,
       month: dto.month,
       year: dto.year,
+      currency,
+      exchangeRate,
       baseSalary,
       bonuses,
       deductions,
@@ -123,6 +141,12 @@ export class PayrollService {
       maxKpi,
       kpiPercentage,
       kpiAmount,
+      baseBaseSalary,
+      baseBonuses,
+      baseDeductions,
+      baseOvertimePay,
+      baseMaxKpi,
+      baseKpiAmount,
       netSalary,
       workingDays,
       presentDays,
@@ -162,10 +186,23 @@ export class PayrollService {
     const payroll = await this.payrollModel.findById(id);
     if (!payroll) throw new NotFoundException('Payroll not found');
 
-    if (dto.bonuses !== undefined) payroll.bonuses = dto.bonuses;
-    if (dto.deductions !== undefined) payroll.deductions = dto.deductions;
-    if (dto.maxKpi !== undefined) payroll.maxKpi = dto.maxKpi;
-    if (dto.kpiPercentage !== undefined) payroll.kpiPercentage = dto.kpiPercentage;
+    const exchangeRate = payroll.exchangeRate || 1;
+
+    if (dto.bonuses !== undefined) {
+      payroll.bonuses = dto.bonuses;
+      payroll.baseBonuses = calculateBaseAmount(dto.bonuses, exchangeRate);
+    }
+    if (dto.deductions !== undefined) {
+      payroll.deductions = dto.deductions;
+      payroll.baseDeductions = calculateBaseAmount(dto.deductions, exchangeRate);
+    }
+    if (dto.maxKpi !== undefined) {
+      payroll.maxKpi = dto.maxKpi;
+      payroll.baseMaxKpi = calculateBaseAmount(dto.maxKpi, exchangeRate);
+    }
+    if (dto.kpiPercentage !== undefined) {
+      payroll.kpiPercentage = dto.kpiPercentage;
+    }
     if (dto.transferScreenshot !== undefined) payroll.transferScreenshot = dto.transferScreenshot;
     if (dto.transactionNumber !== undefined) payroll.transactionNumber = dto.transactionNumber;
     if (dto.status) {
@@ -174,12 +211,13 @@ export class PayrollService {
     }
     if (dto.notes) payroll.notes = dto.notes;
 
-    // Recalculate KPI amount
+    // Recalculate KPI amount (in original currency)
     payroll.kpiAmount = parseFloat(((payroll.maxKpi * payroll.kpiPercentage) / 100).toFixed(2));
+    payroll.baseKpiAmount = calculateBaseAmount(payroll.kpiAmount, exchangeRate);
 
-    // Recalculate net salary
+    // Recalculate net salary (sum of all base amounts)
     payroll.netSalary = parseFloat(
-      (payroll.baseSalary + payroll.bonuses + payroll.overtimePay - payroll.deductions + payroll.kpiAmount).toFixed(2),
+      (payroll.baseBaseSalary + payroll.baseBonuses + payroll.baseOvertimePay - payroll.baseDeductions + payroll.baseKpiAmount).toFixed(2),
     );
 
     await payroll.save();
@@ -251,12 +289,15 @@ export class PayrollService {
       throw new NotFoundException('No paid payrolls to record as expenses');
     }
 
-    // Calculate total
-    const total = pendingPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
+    // Calculate total (netSalary is already in base currency)
+    const totalBaseAmount = pendingPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
 
-    // Create expense record
+    // Create expense record in base currency
     const expense = await this.expenseModel.create({
-      amount: total,
+      amount: totalBaseAmount,
+      currency: BASE_CURRENCY,
+      exchangeRate: 1,
+      baseAmount: totalBaseAmount,
       category: 'salaries',
       date: new Date(),
       description: `Salary payments for ${pendingPayrolls.length} employee(s)`,
@@ -275,7 +316,7 @@ export class PayrollService {
     );
 
     return {
-      total,
+      total: totalBaseAmount,
       count: pendingPayrolls.length,
       expense,
     };

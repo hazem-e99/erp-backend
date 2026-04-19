@@ -4,6 +4,7 @@
  */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
 
 export type TransactionDocument = HydratedDocument<Transaction>;
 
@@ -14,6 +15,15 @@ export class Transaction {
 
   @Prop({ required: true })
   amount!: number;
+
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001 })
+  exchangeRate!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseAmount!: number;
 
   @Prop({ default: 'completed' })
   status!: string;

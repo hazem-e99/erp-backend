@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
+import { calculateBaseAmount } from '../validators/finance.validators';
 
 @Injectable()
 export class ExpensesService {
@@ -12,8 +13,13 @@ export class ExpensesService {
   ) {}
 
   async create(dto: CreateExpenseDto, attachmentUrl?: string): Promise<ExpenseDocument> {
+    const baseAmount = calculateBaseAmount(dto.amount, dto.exchangeRate);
+    
     const expense = new this.expenseModel({
       amount: dto.amount,
+      currency: dto.currency,
+      exchangeRate: dto.exchangeRate,
+      baseAmount, // Converted to base currency
       category: dto.category,
       date: new Date(dto.date),
       description: dto.description,
@@ -60,7 +66,7 @@ export class ExpensesService {
     }
     const result = await this.expenseModel.aggregate([
       { $match: match },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
     return result[0]?.total ?? 0;
   }
@@ -74,7 +80,7 @@ export class ExpensesService {
     }
     return this.expenseModel.aggregate([
       { $match: match },
-      { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $group: { _id: '$category', total: { $sum: '$baseAmount' }, count: { $sum: 1 } } }, // Use baseAmount
       { $sort: { total: -1 } },
     ]);
   }
@@ -92,7 +98,7 @@ export class ExpensesService {
       {
         $group: {
           _id: { month: { $month: '$date' } },
-          total: { $sum: '$amount' },
+          total: { $sum: '$baseAmount' }, // Use baseAmount
         },
       },
     ]);

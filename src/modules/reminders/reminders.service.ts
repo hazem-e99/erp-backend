@@ -55,14 +55,16 @@ export class RemindersService {
   }
 
   // Get pending reminders that need to be sent
-  async getPendingReminders(): Promise<Array<{ reminder: any; period: string }>> {
+  async getPendingReminders(debugMode = false): Promise<Array<{ reminder: any; period: string }>> {
     const now = new Date();
     const reminders = await this.reminderModel
       .find({ status: 'pending' })
       .populate('userId', 'email name')
       .exec();
 
-    console.log(`Found ${reminders.length} pending reminder(s) in database`);
+    if (debugMode) {
+      console.log(`   📊 ${reminders.length} pending reminder(s) in database`);
+    }
 
     const pendingToSend: Array<{ reminder: any; period: string }> = [];
     
@@ -72,8 +74,9 @@ export class RemindersService {
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
       const diffHours = diffMs / (1000 * 60 * 60);
 
-      console.log(`Reminder: ${reminder.title}, Days until: ${diffDays.toFixed(2)}, Hours until: ${diffHours.toFixed(2)}`);
-      console.log(`  Periods: ${JSON.stringify(reminder.reminderPeriods)}, SentAt: ${JSON.stringify(reminder.sentAt)}`);
+      if (debugMode) {
+        console.log(`   - ${reminder.title}: ${diffDays.toFixed(1)} days (${diffHours.toFixed(1)}h)`);
+      }
 
       const periods = reminder.reminderPeriods || [];
       

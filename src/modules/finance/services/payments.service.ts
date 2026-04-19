@@ -8,6 +8,7 @@ import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
+import { calculateBaseAmount } from '../validators/finance.validators';
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +24,8 @@ export class PaymentsService {
    * Allocates payment to the specified installment (FIFO within subscription).
    * Handles partial and overpayments.
    * Uses findOneAndUpdate for atomic updates to prevent race conditions.
+   * 
+   * CRITICAL: All allocation math uses baseAmount (in base currency EGP)
    */
   async create(dto: CreatePaymentDto): Promise<{ payment: PaymentDocument; overflow: number }> {
     const installment = await this.installmentModel.findById(dto.installmentId);
@@ -37,12 +40,16 @@ export class PaymentsService {
       throw FinanceErrors.INSTALLMENT_CANCELLED_SUB();
     }
 
-    const remaining = installment.amount - installment.paidAmount;
-    const applied = Math.min(dto.amount, remaining);
-    const overflow = parseFloat((dto.amount - applied).toFixed(2));
-    const newPaidAmount = parseFloat((installment.paidAmount + applied).toFixed(2));
+    // Calculate base amount (payment amount converted to base currency)
+    const paymentBaseAmount = calculateBaseAmount(dto.amount, dto.exchangeRate);
+
+    // Installment's remaining balance is in base currency
+    const remaining = installment.baseAmount - installment.paidAmount;
+    const appliedBase = Math.min(paymentBaseAmount, remaining);
+    const overflowBase = parseFloat((paymentBaseAmount - appliedBase).toFixed(2));
+    const newPaidAmount = parseFloat((installment.paidAmount + appliedBase).toFixed(2));
     const newStatus =
-      newPaidAmount >= installment.amount
+      newPaidAmount >= installment.baseAmount
         ? InstallmentStatus.PAID
         : InstallmentStatus.PARTIALLY_PAID;
 
@@ -69,18 +76,21 @@ export class PaymentsService {
       installmentId: new Types.ObjectId(dto.installmentId),
       clientId: new Types.ObjectId(dto.clientId),
       clientName: dto.clientName,
-      amount: applied,
+      amount: dto.amount, // Original amount in original currency
+      currency: dto.currency,
+      exchangeRate: dto.exchangeRate,
+      baseAmount: paymentBaseAmount, // Converted to base currency
       paymentDate: new Date(dto.paymentDate),
       method: dto.method,
       reference: dto.reference ?? '',
       notes: dto.notes ?? '',
-      overpaymentAmount: overflow,
+      overpaymentAmount: overflowBase, // Overflow in base currency
     });
     await payment.save();
 
-    // Update subscription paidAmount + activate if first payment
+    // Update subscription paidAmount + activate if first payment (uses base amount)
     await this.subscriptionModel.findByIdAndUpdate(dto.subscriptionId, {
-      $inc: { paidAmount: applied },
+      $inc: { paidAmount: appliedBase },
     });
 
     // Re-fetch subscription (subscription was fetched above)
@@ -90,7 +100,7 @@ export class PaymentsService {
     }
 
     // Auto-allocate overflow to next pending installment
-    if (overflow > 0) {
+    if (overflowBase > 0) {
       const nextInstallment = await this.installmentModel
         .findOne({
           subscriptionId: new Types.ObjectId(dto.subscriptionId),
@@ -99,10 +109,12 @@ export class PaymentsService {
         .sort({ dueDate: 1 });
 
       if (nextInstallment) {
+        // Convert overflow back to original currency for the recursive call
+        const overflowInOriginalCurrency = parseFloat((overflowBase / dto.exchangeRate).toFixed(2));
         await this.create({
           ...dto,
           installmentId: nextInstallment._id.toString(),
-          amount: overflow,
+          amount: overflowInOriginalCurrency,
           notes: `Overflow from previous payment`,
         });
       }
@@ -111,10 +123,10 @@ export class PaymentsService {
     this.gateway.emitFinanceUpdate('payment:created', {
       paymentId: payment._id.toString(),
       subscriptionId: dto.subscriptionId,
-      amount: applied,
+      amount: appliedBase, // Emit base amount for consistency
     });
 
-    return { payment, overflow };
+    return { payment, overflow: overflowBase };
   }
 
   async findAll(query: PaginationQueryDto) {
@@ -150,7 +162,7 @@ export class PaymentsService {
     }
     const result = await this.paymentModel.aggregate([
       { $match: match },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount for aggregation
     ]);
     return result[0]?.total ?? 0;
   }

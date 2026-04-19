@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
 
 export type InstallmentDocument = Installment & Document;
 
@@ -24,8 +25,17 @@ export class Installment {
   @Prop({ required: true, min: 0 })
   amount!: number;
 
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001 })
+  exchangeRate!: number;
+
+  @Prop({ required: true, min: 0 })
+  baseAmount!: number;
+
   @Prop({ default: 0 })
-  paidAmount!: number;
+  paidAmount!: number; // Always in base currency
 
   @Prop({ type: Date, required: true })
   dueDate!: Date;

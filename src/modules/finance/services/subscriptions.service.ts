@@ -9,7 +9,7 @@ import { CreateSubscriptionDto, InstallmentItemDto } from '../dto/create-subscri
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
-import { roundCents } from '../validators/finance.validators';
+import { roundCents, calculateBaseAmount } from '../validators/finance.validators';
 
 @Injectable()
 export class SubscriptionsService {
@@ -89,7 +89,13 @@ export class SubscriptionsService {
     const startDate = new Date(dto.startDate);
     const endDate = this.calcEndDate(startDate, dto.planType as PlanType);
     const months = this.planMonths(dto.planType as PlanType);
+    
+    // Calculate base total price (converted to base currency)
+    const baseTotalPrice = calculateBaseAmount(dto.totalPrice!, dto.exchangeRate);
+    
+    // Calculate monthly revenue in both currencies
     const monthlyRevenue = parseFloat((dto.totalPrice! / months).toFixed(2));
+    const monthlyRevenueBase = parseFloat((baseTotalPrice / months).toFixed(2));
 
     // Create subscription
     const sub = new this.subscriptionModel({
@@ -97,6 +103,9 @@ export class SubscriptionsService {
       clientName: dto.clientName,
       planType: dto.planType,
       totalPrice: dto.totalPrice,
+      currency: dto.currency,
+      exchangeRate: dto.exchangeRate,
+      baseTotalPrice, // Converted to base currency
       startDate,
       endDate,
       installmentPlan: dto.installmentPlan,
@@ -110,15 +119,22 @@ export class SubscriptionsService {
     const revenueEntries: Record<string, any>[] = [];
     for (let i = 0; i < months; i++) {
       const recognitionDate = addMonths(startDate, i);
-      // Adjust last entry for rounding difference
+      // Adjust last entry for rounding difference (both currencies)
       const amt = i === months - 1
         ? parseFloat((dto.totalPrice - monthlyRevenue * (months - 1)).toFixed(2))
         : monthlyRevenue;
+      const amtBase = i === months - 1
+        ? parseFloat((baseTotalPrice - monthlyRevenueBase * (months - 1)).toFixed(2))
+        : monthlyRevenueBase;
+      
       revenueEntries.push({
         subscriptionId: sub._id,
         clientId: new Types.ObjectId(dto.clientId),
         clientName: dto.clientName,
         amount: amt,
+        currency: dto.currency,
+        exchangeRate: dto.exchangeRate,
+        baseAmount: amtBase, // Converted to base currency
         recognitionDate,
         status: RevenueStatus.PENDING,
         periodMonth: i + 1,
@@ -145,6 +161,9 @@ export class SubscriptionsService {
         clientId: sub.clientId,
         clientName: sub.clientName,
         amount: sub.totalPrice,
+        currency: dto.currency,
+        exchangeRate: dto.exchangeRate,
+        baseAmount: sub.baseTotalPrice, // Use subscription's baseTotalPrice
         paidAmount: 0,
         dueDate: new Date(dto.startDate),
         status: InstallmentStatus.PENDING,
@@ -160,7 +179,10 @@ export class SubscriptionsService {
       subscriptionId: sub._id,
       clientId: sub.clientId,
       clientName: sub.clientName,
-      amount: roundCents(item.amount),   // normalized
+      amount: roundCents(item.amount),   // normalized original currency
+      currency: dto.currency,
+      exchangeRate: dto.exchangeRate,
+      baseAmount: calculateBaseAmount(item.amount, dto.exchangeRate), // Converted to base
       paidAmount: 0,
       dueDate: new Date(item.dueDate),
       status: InstallmentStatus.PENDING,

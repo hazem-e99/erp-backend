@@ -93,7 +93,7 @@ export class InstallmentsService {
       {
         $group: {
           _id: null,
-          total: { $sum: { $subtract: ['$amount', '$paidAmount'] } },
+          total: { $sum: { $subtract: ['$baseAmount', '$paidAmount'] } }, // Use baseAmount
         },
       },
     ]);

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
 
 export type PayrollDocument = Payroll & Document;
 
@@ -14,6 +15,14 @@ export class Payroll {
   @Prop({ required: true })
   year: number;
 
+  // Currency inherited from employee
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001, max: 10000 })
+  exchangeRate!: number;
+
+  // Original currency amounts
   @Prop({ required: true })
   baseSalary: number;
 
@@ -35,6 +44,26 @@ export class Payroll {
   @Prop({ default: 0 })
   kpiAmount: number;
 
+  // Base currency amounts (calculated)
+  @Prop({ required: true, min: 0 })
+  baseBaseSalary!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseBonuses!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseDeductions!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseOvertimePay!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseMaxKpi!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseKpiAmount!: number;
+
+  // Net salary always in base currency (sum of all base amounts)
   @Prop({ default: 0 })
   netSalary: number;
 

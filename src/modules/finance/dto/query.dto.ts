@@ -1,4 +1,5 @@
 import { IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { SupportedCurrency } from '../constants/currency.constants';
 
 export class ReportQueryDto {
   @IsOptional()
@@ -33,4 +34,8 @@ export class PaginationQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  @IsEnum(SupportedCurrency)
+  currency?: SupportedCurrency;
 }

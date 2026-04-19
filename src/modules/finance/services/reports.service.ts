@@ -28,7 +28,7 @@ export class ReportsService {
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m', date: '$paymentDate' } },
-            cashIn: { $sum: '$amount' },
+            cashIn: { $sum: '$baseAmount' }, // Use baseAmount
           },
         },
         { $sort: { _id: 1 } },
@@ -38,7 +38,7 @@ export class ReportsService {
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m', date: '$date' } },
-            cashOut: { $sum: '$amount' },
+            cashOut: { $sum: '$baseAmount' }, // Use baseAmount
           },
         },
         { $sort: { _id: 1 } },
@@ -72,11 +72,11 @@ export class ReportsService {
             status: RevenueStatus.RECOGNIZED,
           },
         },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
       this.expenseModel.aggregate([
         { $match: { date: { $gte: start, $lte: end } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
     ]);
 
@@ -98,14 +98,14 @@ export class ReportsService {
   async getSubscriptionMetrics() {
     const [statusBreakdown, planBreakdown, revenueByPlan] = await Promise.all([
       this.subscriptionModel.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$totalPrice' } } },
+        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$baseTotalPrice' } } }, // Use baseTotalPrice
       ]),
       this.subscriptionModel.aggregate([
-        { $group: { _id: '$planType', count: { $sum: 1 }, total: { $sum: '$totalPrice' } } },
+        { $group: { _id: '$planType', count: { $sum: 1 }, total: { $sum: '$baseTotalPrice' } } }, // Use baseTotalPrice
       ]),
       this.subscriptionModel.aggregate([
         { $match: { status: SubscriptionStatus.ACTIVE } },
-        { $group: { _id: '$planType', mrr: { $sum: '$totalPrice' } } },
+        { $group: { _id: '$planType', mrr: { $sum: '$baseTotalPrice' } } }, // Use baseTotalPrice
       ]),
     ]);
 
@@ -129,11 +129,11 @@ export class ReportsService {
     ] = await Promise.all([
       this.paymentModel.aggregate([
         { $match: { paymentDate: { $gte: yearStart } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
       this.expenseModel.aggregate([
         { $match: { date: { $gte: yearStart } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
       this.revenueModel.aggregate([
         {
@@ -142,14 +142,14 @@ export class ReportsService {
             status: RevenueStatus.RECOGNIZED,
           },
         },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
       this.installmentModel.aggregate([
         { $match: { status: { $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE] } } },
         {
           $group: {
             _id: null,
-            total: { $sum: { $subtract: ['$amount', '$paidAmount'] } },
+            total: { $sum: { $subtract: ['$baseAmount', '$paidAmount'] } }, // Use baseAmount
           },
         },
       ]),

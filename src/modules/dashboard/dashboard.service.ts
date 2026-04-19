@@ -53,11 +53,11 @@ export class DashboardService {
     // Financial summary
     const incomeAgg = await this.transactionModel.aggregate([
       { $match: { type: 'income', status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
     const expenseAgg = await this.transactionModel.aggregate([
       { $match: { type: 'expense', status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
 
     const totalRevenue = incomeAgg[0]?.total || 0;
@@ -78,7 +78,7 @@ export class DashboardService {
       {
         $group: {
           _id: { month: { $month: '$date' }, year: { $year: '$date' } },
-          total: { $sum: '$amount' },
+          total: { $sum: '$baseAmount' }, // Use baseAmount
         },
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } },

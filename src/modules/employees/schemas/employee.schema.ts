@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
 
 export type EmployeeDocument = Employee & Document;
 
@@ -20,9 +21,11 @@ export class Employee {
   @Prop({ default: null })
   age: number;
 
+  // Salary in original currency
   @Prop({ required: true, default: 0 })
   baseSalary: number;
 
+  // Max KPI in original currency
   @Prop({ default: 0 })
   maxKpi: number;
 
@@ -40,6 +43,21 @@ export class Employee {
 
   @Prop({ default: null })
   whatsappNumber: string;
+
+  // Currency fields for salary/KPI (single currency per employee)
+  @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
+  currency!: string;
+
+  @Prop({ default: 1, min: 0.0001, max: 10000 })
+  exchangeRate!: number;
+
+  // Base currency amounts (calculated from baseSalary * exchangeRate)
+  @Prop({ required: true, min: 0 })
+  baseBaseSalary!: number;
+
+  // Base currency max KPI (calculated from maxKpi * exchangeRate)
+  @Prop({ default: 0, min: 0 })
+  baseMaxKpi!: number;
 
   // Arrays for multi-select
   @Prop({ type: [String], default: [] })
