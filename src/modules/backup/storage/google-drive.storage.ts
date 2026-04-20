@@ -4,7 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { google, drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import { Readable } from 'stream';
+import { Readable, PassThrough } from 'stream';
 import { BackupConfig, BackupConfigDocument } from '../schemas/backup-config.schema';
 import { TokenCryptoService } from '../token-crypto.service';
 import { IBackupStorage, StoredBackupInfo, UploadResult } from './storage.interface';
@@ -180,23 +180,40 @@ export class GoogleDriveStorage implements IBackupStorage {
     const drive = this.driveClient(auth);
 
     let uploadedBytes = 0;
-    stream.on('data', (chunk: Buffer) => {
+    const progressStream = new (require('stream').PassThrough)();
+    
+    // Track upload progress
+    progressStream.on('data', (chunk: Buffer) => {
       uploadedBytes += chunk.length;
     });
 
-    const res = await drive.files.create({
-      requestBody: { name: filename, parents: [cfg.driveFolderId] },
-      media: { mimeType, body: stream },
-      fields: 'id,size',
+    // Pipe input stream to progress tracker
+    stream.pipe(progressStream);
+
+    // Handle stream errors gracefully
+    stream.on('error', (err) => {
+      this.logger.error(`Upload stream error: ${err.message}`);
+      progressStream.destroy(err);
     });
 
-    const remoteKey = res.data.id;
-    if (!remoteKey) {
-      throw new InternalServerErrorException('Drive upload returned no file id');
+    try {
+      const res = await drive.files.create({
+        requestBody: { name: filename, parents: [cfg.driveFolderId] },
+        media: { mimeType, body: progressStream },
+        fields: 'id,size',
+      });
+
+      const remoteKey = res.data.id;
+      if (!remoteKey) {
+        throw new InternalServerErrorException('Drive upload returned no file id');
+      }
+      const reportedSize = res.data.size ? Number(res.data.size) : uploadedBytes;
+      this.logger.log(`Uploaded ${filename} (${reportedSize} bytes) to Drive file ${remoteKey}`);
+      return { remoteKey, sizeBytes: reportedSize };
+    } catch (err: any) {
+      this.logger.error(`Google Drive upload failed: ${err.message}`);
+      throw new InternalServerErrorException(`Drive upload failed: ${err.message}`);
     }
-    const reportedSize = res.data.size ? Number(res.data.size) : uploadedBytes;
-    this.logger.log(`Uploaded ${filename} (${reportedSize} bytes) to Drive file ${remoteKey}`);
-    return { remoteKey, sizeBytes: reportedSize };
   }
 
   async download(remoteKey: string): Promise<Readable> {
