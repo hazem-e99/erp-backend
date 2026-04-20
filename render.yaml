@@ -1,18 +1,51 @@
 services:
   - type: web
     name: erp-api
-    env: node
+    runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    # NOTE: secret env vars (MONGO_URI, JWT_SECRET, BACKUP_*, GOOGLE_*) MUST be set
+    # via Render dashboard → Environment. Do NOT commit them here.
+    buildCommand: |
+      mkdir -p bin && \
+      curl -sSL -o mdbtools.tgz "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.10.0.tgz" && \
+      tar -xzf mdbtools.tgz && \
+      cp mongodb-database-tools-*/bin/mongodump mongodb-database-tools-*/bin/mongorestore bin/ && \
+      chmod +x bin/mongodump bin/mongorestore && \
+      rm -rf mdbtools.tgz mongodb-database-tools-* && \
+      npm install && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
         value: production
-      - key: MONGO_URI
-        value: mongodb+srv://ERP:123@erp.z2yi2co.mongodb.net/erp?retryWrites=true&w=majority
-      - key: JWT_SECRET
-        value: erp-system-jwt-secret-key-2026-production
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: CORS_ORIGIN
         value: "*"
+      - key: MONGODUMP_BIN
+        value: ./bin/mongodump
+      - key: MONGORESTORE_BIN
+        value: ./bin/mongorestore
+      - key: BACKUP_STORAGE_DRIVER
+        value: google-drive
+      - key: BACKUP_RESTORE_PHRASE
+        value: RESTORE PRODUCTION DATABASE
+      - key: GOOGLE_DRIVE_FOLDER_NAME
+        value: ERP-Backups
+      # Secrets below — set each as "sync: false" so Render doesn't overwrite
+      # the dashboard value on deploy. Values are managed in Render UI only.
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: BACKUP_TRIGGER_SECRET
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

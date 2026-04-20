@@ -11,7 +11,7 @@ export class UsersService {
 
   async findAll(query: any = {}) {
     const { page = 1, limit = 20, search } = query;
-    const filter: any = {};
+    const filter: any = { hideFromDashboard: { $ne: true } };
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },

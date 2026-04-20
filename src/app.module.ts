@@ -24,6 +24,7 @@ import { ContractTypesModule } from './modules/contract-types/contract-types.mod
 import { EmailModule } from './modules/email/email.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AuditModule } from './modules/audit/audit.module';
     EmailModule,
     RemindersModule,
     AuditModule,
+    BackupModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

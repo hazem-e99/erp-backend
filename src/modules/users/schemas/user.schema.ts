@@ -25,6 +25,9 @@ export class User {
 
   @Prop({ default: null })
   phone: string;
+
+  @Prop({ default: false })
+  hideFromDashboard: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
