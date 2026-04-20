@@ -74,11 +74,35 @@ export class BackupService {
   }
 
   private dumpBinary(): string {
-    return this.config.get<string>('MONGODUMP_BIN', 'mongodump');
+    const configPath = this.config.get<string>('MONGODUMP_BIN', 'mongodump');
+    // Check if the configured binary exists, fallback to system binary
+    if (configPath !== 'mongodump' && fs.existsSync(configPath)) {
+      return configPath;
+    }
+    // Try common paths on Render
+    const renderPath = '/opt/render/project/src/bin/mongodump';
+    if (fs.existsSync(renderPath)) {
+      return renderPath;
+    }
+    // Fallback to system mongodump
+    this.logger.warn(`mongodump binary not found at ${configPath}, using system mongodump`);
+    return 'mongodump';
   }
 
   private restoreBinary(): string {
-    return this.config.get<string>('MONGORESTORE_BIN', 'mongorestore');
+    const configPath = this.config.get<string>('MONGORESTORE_BIN', 'mongorestore');
+    // Check if the configured binary exists, fallback to system binary
+    if (configPath !== 'mongorestore' && fs.existsSync(configPath)) {
+      return configPath;
+    }
+    // Try common paths on Render
+    const renderPath = '/opt/render/project/src/bin/mongorestore';
+    if (fs.existsSync(renderPath)) {
+      return renderPath;
+    }
+    // Fallback to system mongorestore
+    this.logger.warn(`mongorestore binary not found at ${configPath}, using system mongorestore`);
+    return 'mongorestore';
   }
 
   private buildFilename(): string {
