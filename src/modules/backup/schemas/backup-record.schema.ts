@@ -27,7 +27,7 @@ export class BackupRecord {
   @Prop({ default: 0 })
   sizeBytes!: number;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   sha256!: string | null;
 
   @Prop({ required: true, enum: Object.values(BackupSource) })
@@ -39,16 +39,16 @@ export class BackupRecord {
   @Prop({ required: true, enum: Object.values(BackupLocation) })
   location!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   remoteKey!: string | null;
 
   @Prop({ required: true, enum: Object.values(BackupStatus), default: BackupStatus.RUNNING })
   status!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   errorMessage!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   completedAt!: Date | null;
 }
 

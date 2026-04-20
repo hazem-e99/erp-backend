@@ -3,8 +3,12 @@
 
 import mongoose from 'mongoose';
 import { config } from 'dotenv';
+import * as dns from 'dns';
 
 config();
+
+// Force Google DNS for MongoDB Atlas SRV resolution
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const BACKUP_PERMISSIONS = [
   'backup:export',

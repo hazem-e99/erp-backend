@@ -9,25 +9,25 @@ export type BackupConfigDocument = BackupConfig & Document;
  */
 @Schema({ timestamps: true })
 export class BackupConfig {
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   googleRefreshTokenEnc!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   googleTokenIv!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   googleTokenAuthTag!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   googleAccountEmail!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   driveFolderId!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   connectedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastScheduledRunAt!: Date | null;
 }
 
