@@ -5,14 +5,7 @@ services:
     plan: free
     # NOTE: secret env vars (MONGO_URI, JWT_SECRET, BACKUP_*, GOOGLE_*) MUST be set
     # via Render dashboard → Environment. Do NOT commit them here.
-    buildCommand: |
-      mkdir -p bin && \
-      curl -sSL -o mdbtools.tgz "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.10.0.tgz" && \
-      tar -xzf mdbtools.tgz && \
-      cp mongodb-database-tools-*/bin/mongodump mongodb-database-tools-*/bin/mongorestore bin/ && \
-      chmod +x bin/mongodump bin/mongorestore && \
-      rm -rf mdbtools.tgz mongodb-database-tools-* && \
-      npm install && npm run build
+    buildCommand: chmod +x scripts/render-build.sh && ./scripts/render-build.sh
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
