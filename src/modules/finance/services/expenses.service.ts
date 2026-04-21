@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
-import { calculateBaseAmount } from '../validators/finance.validators';
+import { calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
 
 @Injectable()
 export class ExpensesService {
@@ -34,9 +34,14 @@ export class ExpensesService {
     const skip = (page - 1) * limit;
 
     const filter: Record<string, any> = {};
-    if (query.startDate) filter.date = { $gte: new Date(query.startDate) };
-    if (query.endDate) {
-      filter.date = { ...(filter.date || {}), $lte: new Date(query.endDate) };
+    if (query.month && query.year) {
+      const { start, end } = getMonthDateRange(query.month, query.year);
+      filter.date = { $gte: start, $lte: end };
+    } else {
+      if (query.startDate) filter.date = { $gte: new Date(query.startDate) };
+      if (query.endDate) {
+        filter.date = { ...(filter.date || {}), $lte: new Date(query.endDate) };
+      }
     }
 
     const [data, total] = await Promise.all([

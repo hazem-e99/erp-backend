@@ -8,7 +8,7 @@ import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
-import { calculateBaseAmount } from '../validators/finance.validators';
+import { calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
 
 @Injectable()
 export class PaymentsService {
@@ -136,9 +136,14 @@ export class PaymentsService {
 
     const filter: Record<string, any> = {};
     if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
-    if (query.startDate) filter.paymentDate = { $gte: new Date(query.startDate) };
-    if (query.endDate) {
-      filter.paymentDate = { ...(filter.paymentDate || {}), $lte: new Date(query.endDate) };
+    if (query.month && query.year) {
+      const { start, end } = getMonthDateRange(query.month, query.year);
+      filter.paymentDate = { $gte: start, $lte: end };
+    } else {
+      if (query.startDate) filter.paymentDate = { $gte: new Date(query.startDate) };
+      if (query.endDate) {
+        filter.paymentDate = { ...(filter.paymentDate || {}), $lte: new Date(query.endDate) };
+      }
     }
 
     const [data, total] = await Promise.all([

@@ -9,7 +9,7 @@ import { CreateSubscriptionDto, InstallmentItemDto } from '../dto/create-subscri
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
-import { roundCents, calculateBaseAmount } from '../validators/finance.validators';
+import { roundCents, calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
 
 @Injectable()
 export class SubscriptionsService {
@@ -200,6 +200,15 @@ export class SubscriptionsService {
     const filter: Record<string, any> = {};
     if (query.status) filter.status = query.status;
     if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
+    if (query.month && query.year) {
+      const { start, end } = getMonthDateRange(query.month, query.year);
+      filter.startDate = { $gte: start, $lte: end };
+    } else {
+      if (query.startDate) filter.startDate = { $gte: new Date(query.startDate) };
+      if (query.endDate) {
+        filter.startDate = { ...(filter.startDate || {}), $lte: new Date(query.endDate) };
+      }
+    }
 
     const [data, total] = await Promise.all([
       this.subscriptionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),

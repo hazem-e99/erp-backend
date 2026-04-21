@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
+import { getMonthDateRange } from '../validators/finance.validators';
 
 @Injectable()
 export class InstallmentsService {
@@ -20,6 +21,15 @@ export class InstallmentsService {
     const filter: Record<string, any> = {};
     if (query.status) filter.status = query.status;
     if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
+    if (query.month && query.year) {
+      const { start, end } = getMonthDateRange(query.month, query.year);
+      filter.dueDate = { $gte: start, $lte: end };
+    } else {
+      if (query.startDate) filter.dueDate = { $gte: new Date(query.startDate) };
+      if (query.endDate) {
+        filter.dueDate = { ...(filter.dueDate || {}), $lte: new Date(query.endDate) };
+      }
+    }
 
     const [data, total] = await Promise.all([
       this.installmentModel.find(filter).sort({ dueDate: 1 }).skip(skip).limit(limit).lean(),

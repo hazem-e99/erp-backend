@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
+import { getMonthDateRange } from '../validators/finance.validators';
 
 @Injectable()
 export class RevenueService {
@@ -20,9 +21,14 @@ export class RevenueService {
     const filter: Record<string, any> = {};
     if (query.status) filter.status = query.status;
     if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
-    if (query.startDate) filter.recognitionDate = { $gte: new Date(query.startDate) };
-    if (query.endDate) {
-      filter.recognitionDate = { ...(filter.recognitionDate || {}), $lte: new Date(query.endDate) };
+    if (query.month && query.year) {
+      const { start, end } = getMonthDateRange(query.month, query.year);
+      filter.recognitionDate = { $gte: start, $lte: end };
+    } else {
+      if (query.startDate) filter.recognitionDate = { $gte: new Date(query.startDate) };
+      if (query.endDate) {
+        filter.recognitionDate = { ...(filter.recognitionDate || {}), $lte: new Date(query.endDate) };
+      }
     }
 
     const [data, total] = await Promise.all([

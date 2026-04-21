@@ -11,8 +11,8 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('dashboard')
-  getDashboard() {
-    return this.reportsService.getDashboardSummary();
+  getDashboard(@Query() query: ReportQueryDto) {
+    return this.reportsService.getDashboardSummary(query);
   }
 
   @Get('cash-flow')
@@ -26,13 +26,13 @@ export class ReportsController {
   }
 
   @Get('outstanding-payments')
-  getOutstandingPayments() {
-    return this.reportsService.getOutstandingPayments();
+  getOutstandingPayments(@Query() query: ReportQueryDto) {
+    return this.reportsService.getOutstandingPayments(query);
   }
 
   @Get('subscription-metrics')
-  getSubscriptionMetrics() {
-    return this.reportsService.getSubscriptionMetrics();
+  getSubscriptionMetrics(@Query() query: ReportQueryDto) {
+    return this.reportsService.getSubscriptionMetrics(query);
   }
 
   @Delete('clear-all-data')
