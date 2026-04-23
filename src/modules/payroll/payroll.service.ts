@@ -88,6 +88,7 @@ export class PayrollService {
     const absentDeduction = 0; // Deductions are manual only
 
     const bonuses = dto.bonuses || 0;
+    const commissions = dto.commissions || 0;
     const deductions = dto.deductions || 0; // Manual deductions only
 
     // Calculate KPI amount (in original currency)
@@ -98,13 +99,14 @@ export class PayrollService {
     // Calculate base currency amounts for all financial values
     const baseBaseSalary = calculateBaseAmount(baseSalary, exchangeRate);
     const baseBonuses = calculateBaseAmount(bonuses, exchangeRate);
+    const baseCommissions = calculateBaseAmount(commissions, exchangeRate);
     const baseDeductions = calculateBaseAmount(deductions, exchangeRate);
     const baseOvertimePay = calculateBaseAmount(overtimePay, exchangeRate);
     const baseMaxKpi = calculateBaseAmount(maxKpi, exchangeRate);
     const baseKpiAmount = calculateBaseAmount(kpiAmount, exchangeRate);
 
     // Net salary is sum of all base amounts (always in base currency)
-    const netSalary = parseFloat((baseBaseSalary + baseBonuses + baseOvertimePay - baseDeductions + baseKpiAmount).toFixed(2));
+    const netSalary = parseFloat((baseBaseSalary + baseBonuses + baseCommissions + baseOvertimePay - baseDeductions + baseKpiAmount).toFixed(2));
 
     const breakdown = {
       baseSalary,
@@ -119,6 +121,7 @@ export class PayrollService {
       overtimePay,
       totalLateMinutes,
       bonuses,
+      commissions,
       manualDeductions: dto.deductions || 0,
       absentDeduction,
       totalDeductions: deductions,
@@ -136,6 +139,7 @@ export class PayrollService {
       exchangeRate,
       baseSalary,
       bonuses,
+      commissions,
       deductions,
       overtimePay,
       maxKpi,
@@ -143,6 +147,7 @@ export class PayrollService {
       kpiAmount,
       baseBaseSalary,
       baseBonuses,
+      baseCommissions,
       baseDeductions,
       baseOvertimePay,
       baseMaxKpi,
@@ -192,6 +197,10 @@ export class PayrollService {
       payroll.bonuses = dto.bonuses;
       payroll.baseBonuses = calculateBaseAmount(dto.bonuses, exchangeRate);
     }
+    if (dto.commissions !== undefined) {
+      payroll.commissions = dto.commissions;
+      payroll.baseCommissions = calculateBaseAmount(dto.commissions, exchangeRate);
+    }
     if (dto.deductions !== undefined) {
       payroll.deductions = dto.deductions;
       payroll.baseDeductions = calculateBaseAmount(dto.deductions, exchangeRate);
@@ -217,7 +226,7 @@ export class PayrollService {
 
     // Recalculate net salary (sum of all base amounts)
     payroll.netSalary = parseFloat(
-      (payroll.baseBaseSalary + payroll.baseBonuses + payroll.baseOvertimePay - payroll.baseDeductions + payroll.baseKpiAmount).toFixed(2),
+      (payroll.baseBaseSalary + payroll.baseBonuses + payroll.baseCommissions + payroll.baseOvertimePay - payroll.baseDeductions + payroll.baseKpiAmount).toFixed(2),
     );
 
     await payroll.save();
@@ -236,6 +245,7 @@ export class PayrollService {
       period: `${payroll.month}/${payroll.year}`,
       baseSalary: payroll.baseSalary,
       bonuses: payroll.bonuses,
+      commissions: payroll.commissions,
       overtimePay: payroll.overtimePay,
       deductions: payroll.deductions,
       netSalary: payroll.netSalary,

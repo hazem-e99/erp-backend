@@ -30,6 +30,9 @@ export class Payroll {
   bonuses: number;
 
   @Prop({ default: 0 })
+  commissions: number;
+
+  @Prop({ default: 0 })
   deductions: number;
 
   @Prop({ default: 0 })
@@ -50,6 +53,9 @@ export class Payroll {
 
   @Prop({ default: 0, min: 0 })
   baseBonuses!: number;
+
+  @Prop({ default: 0, min: 0 })
+  baseCommissions!: number;
 
   @Prop({ default: 0, min: 0 })
   baseDeductions!: number;

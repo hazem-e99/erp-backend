@@ -213,4 +213,25 @@ export class EmployeesService {
 
     return { message: 'Employee terminated and account deactivated' };
   }
+
+  /**
+   * Hard delete employee and linked user account
+   */
+  async deletePermanently(id: string, currentUserId?: string) {
+    const emp = await this.employeeModel.findById(id);
+    if (!emp) throw new NotFoundException('Employee not found');
+
+    const linkedUserId = emp.userId?.toString();
+    if (currentUserId && linkedUserId === currentUserId) {
+      throw new ForbiddenException('You cannot permanently delete your own account');
+    }
+
+    await this.employeeModel.findByIdAndDelete(id);
+
+    if (linkedUserId) {
+      await this.userModel.findByIdAndDelete(linkedUserId);
+    }
+
+    return { message: 'Employee and linked user account deleted permanently' };
+  }
 }

@@ -14,15 +14,17 @@ import { Logger } from '@nestjs/common';
     credentials: true,
   },
 })
-export class FinanceGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class FinanceGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
-  private server: Server;
+  private server!: Server;
 
   private readonly logger = new Logger(FinanceGateway.name);
 
   handleConnection(client: Socket) {
     this.logger.log(`Finance WS connected: ${client.id}`);
-    client.join('finance');
+    void client.join('finance');
   }
 
   handleDisconnect(client: Socket) {

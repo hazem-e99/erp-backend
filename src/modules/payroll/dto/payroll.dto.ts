@@ -22,6 +22,11 @@ export class GeneratePayrollDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
+  commissions?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   deductions?: number;
 
   @ApiPropertyOptional()
@@ -45,6 +50,11 @@ export class UpdatePayrollDto {
   @IsOptional()
   @IsNumber()
   bonuses?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  commissions?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

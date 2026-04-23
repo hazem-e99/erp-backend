@@ -74,4 +74,14 @@ export class EmployeesController {
   delete(@Param('id', ParseObjectIdPipe) id: string) {
     return this.employeesService.delete(id);
   }
+
+  @Delete(':id/permanent')
+  @RequirePermissions('employees:delete')
+  @ApiOperation({ summary: 'Permanently delete employee and linked user account' })
+  deletePermanently(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser('_id') currentUserId: string,
+  ) {
+    return this.employeesService.deletePermanently(id, currentUserId);
+  }
 }

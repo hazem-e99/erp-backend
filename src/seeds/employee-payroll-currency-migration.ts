@@ -87,6 +87,7 @@ async function migrate() {
     for (const payroll of payrolls) {
       const baseSalary = payroll.baseSalary || 0;
       const bonuses = payroll.bonuses || 0;
+      const commissions = payroll.commissions || 0;
       const deductions = payroll.deductions || 0;
       const overtimePay = payroll.overtimePay || 0;
       const maxKpi = payroll.maxKpi || 0;
@@ -95,13 +96,14 @@ async function migrate() {
       
       const baseBaseSalary = Math.round(baseSalary * exchangeRate * 100) / 100;
       const baseBonuses = Math.round(bonuses * exchangeRate * 100) / 100;
+      const baseCommissions = Math.round(commissions * exchangeRate * 100) / 100;
       const baseDeductions = Math.round(deductions * exchangeRate * 100) / 100;
       const baseOvertimePay = Math.round(overtimePay * exchangeRate * 100) / 100;
       const baseMaxKpi = Math.round(maxKpi * exchangeRate * 100) / 100;
       const baseKpiAmount = Math.round(kpiAmount * exchangeRate * 100) / 100;
       
       // Recalculate netSalary as sum of base amounts
-      const netSalary = Math.round((baseBaseSalary + baseBonuses + baseOvertimePay - baseDeductions + baseKpiAmount) * 100) / 100;
+      const netSalary = Math.round((baseBaseSalary + baseBonuses + baseCommissions + baseOvertimePay - baseDeductions + baseKpiAmount) * 100) / 100;
       
       await payrollsCollection.updateOne(
         { _id: payroll._id },
@@ -109,6 +111,7 @@ async function migrate() {
           $set: {
             baseBaseSalary,
             baseBonuses,
+            baseCommissions,
             baseDeductions,
             baseOvertimePay,
             baseMaxKpi,
