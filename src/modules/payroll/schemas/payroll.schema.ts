@@ -99,6 +99,9 @@ export class Payroll {
 
   @Prop({ default: false })
   isRecordedAsExpense: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'Expense', default: null })
+  expenseId: Types.ObjectId;
 }
 
 export const PayrollSchema = SchemaFactory.createForClass(Payroll);

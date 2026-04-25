@@ -51,8 +51,29 @@ export class PayrollController {
   @Post('mark-as-expenses')
   @RequirePermissions('payroll:create')
   @ApiOperation({ summary: 'Mark all paid payrolls as expenses' })
-  markAsExpenses() {
-    return this.payrollService.markAsExpenses();
+  markAsExpenses(@Body() body: { month?: number; year?: number; expenseDate?: string }) {
+    return this.payrollService.markAsExpenses(body.month, body.year, body.expenseDate);
+  }
+
+  @Post('update-expense')
+  @RequirePermissions('payroll:update')
+  @ApiOperation({ summary: 'Update the salary expense record for a given month' })
+  updateExpense(@Body() body: { month: number; year: number }) {
+    return this.payrollService.updateExpense(body.month, body.year);
+  }
+
+  @Post('unlink-expense')
+  @RequirePermissions('payroll:update')
+  @ApiOperation({ summary: 'Unlink and delete the salary expense for a given month so it can be re-recorded' })
+  unlinkExpense(@Body() body: { month: number; year: number }) {
+    return this.payrollService.unlinkExpense(body.month, body.year);
+  }
+
+  @Post('clean-old-expenses')
+  @RequirePermissions('payroll:update')
+  @ApiOperation({ summary: 'Delete all old/duplicate salary expenses from Finance' })
+  cleanOldExpenses() {
+    return this.payrollService.cleanOldExpenses();
   }
 
   @Get(':id')

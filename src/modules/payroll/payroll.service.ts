@@ -288,19 +288,34 @@ export class PayrollService {
   /**
    * Mark all paid payrolls as expenses and create a single expense record
    */
-  async markAsExpenses(): Promise<{ total: number; count: number; expense: any }> {
-    // Find all paid payrolls not yet recorded
+  async markAsExpenses(month?: number, year?: number, expenseDate?: string): Promise<{ total: number; count: number; expense: any }> {
+    const targetMonth = Number(month ?? new Date().getMonth() + 1);
+    const targetYear = Number(year ?? new Date().getFullYear());
+
+    // Find paid payrolls for the SELECTED month/year ONLY that are not yet recorded
     const pendingPayrolls = await this.payrollModel.find({
       status: 'paid',
       isRecordedAsExpense: false,
+      month: targetMonth,
+      year: targetYear,
     });
 
     if (pendingPayrolls.length === 0) {
-      throw new NotFoundException('No paid payrolls to record as expenses');
+      throw new NotFoundException(`No paid payrolls to record as expenses for ${targetMonth}/${targetYear}`);
     }
 
     // Calculate total (netSalary is already in base currency)
     const totalBaseAmount = pendingPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
+
+    // Use the provided expenseDate or default to today (UTC)
+    let date = new Date();
+    if (expenseDate) {
+      // expenseDate is in format YYYY-MM-DD from the frontend date input
+      const [year, month, day] = expenseDate.split('-').map(Number);
+      date = new Date(Date.UTC(year, month - 1, day));
+    } else {
+      date = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    }
 
     // Create expense record in base currency
     const expense = await this.expenseModel.create({
@@ -309,20 +324,16 @@ export class PayrollService {
       exchangeRate: 1,
       baseAmount: totalBaseAmount,
       category: 'salaries',
-      date: new Date(),
-      description: `Salary payments for ${pendingPayrolls.length} employee(s)`,
+      date: date,
+      description: `Salary payments for ${pendingPayrolls.length} employee(s) in ${targetMonth}/${targetYear}`,
       attachmentUrl: '',
     });
 
-    // Mark all as recorded
+    // Mark only the payrolls we processed as recorded and link the expense
+    const payrollIds = pendingPayrolls.map(p => p._id);
     await this.payrollModel.updateMany(
-      {
-        status: 'paid',
-        isRecordedAsExpense: false,
-      },
-      {
-        $set: { isRecordedAsExpense: true },
-      },
+      { _id: { $in: payrollIds } },
+      { $set: { isRecordedAsExpense: true, expenseId: expense._id } },
     );
 
     return {
@@ -330,5 +341,97 @@ export class PayrollService {
       count: pendingPayrolls.length,
       expense,
     };
+  }
+
+  /**
+   * Recalculate and update the salary expense record for a given month/year
+   */
+  async updateExpense(month: number, year: number): Promise<{ total: number; count: number }> {
+    const recorded = await this.payrollModel.find({
+      status: 'paid',
+      isRecordedAsExpense: true,
+      month,
+      year,
+    });
+
+    if (recorded.length === 0) {
+      throw new NotFoundException('No recorded expense found for this month');
+    }
+
+    const expenseId = recorded[0].expenseId;
+    if (!expenseId) {
+      throw new NotFoundException('Expense record not linked — please re-mark as expenses');
+    }
+
+    const newTotal = recorded.reduce((sum, p) => sum + p.netSalary, 0);
+
+    await this.expenseModel.findByIdAndUpdate(expenseId, {
+      amount: newTotal,
+      baseAmount: newTotal,
+      description: `Salary payments for ${recorded.length} employee(s)`,
+    });
+
+    return { total: newTotal, count: recorded.length };
+  }
+
+  /**
+   * Delete the linked expense record and reset payrolls so they can be re-recorded in the correct month
+   */
+  async unlinkExpense(month: number, year: number): Promise<{ count: number; deletedExpenses: number }> {
+    const targetMonth = Number(month);
+    const targetYear = Number(year);
+
+    const recorded = await this.payrollModel.find({
+      status: 'paid',
+      isRecordedAsExpense: true,
+      month: targetMonth,
+      year: targetYear,
+    });
+
+    if (recorded.length === 0) {
+      throw new NotFoundException('No recorded expense found for this month');
+    }
+
+    let deletedCount = 0;
+
+    // Delete via linked expenseId if available
+    const expenseId = recorded[0].expenseId;
+    if (expenseId) {
+      const deleted = await this.expenseModel.findByIdAndDelete(expenseId);
+      if (deleted) deletedCount = 1;
+    } else {
+      // Fallback: find and delete ALL salaries expenses for this year
+      // (because old records might have wrong dates)
+      const result = await this.expenseModel.deleteMany({
+        category: 'salaries',
+        description: { $regex: 'Salary payments' },
+      });
+      deletedCount = result.deletedCount || 0;
+    }
+
+    await this.payrollModel.updateMany(
+      { status: 'paid', isRecordedAsExpense: true, month: targetMonth, year: targetYear },
+      { $set: { isRecordedAsExpense: false, expenseId: null } },
+    );
+
+    return { count: recorded.length, deletedExpenses: deletedCount };
+  }
+
+  /**
+   * Clean up all salary expenses — delete them all so they can be re-recorded correctly
+   * This fixes cases where old expenses were recorded with wrong dates or counts
+   */
+  async cleanOldExpenses(): Promise<{ deletedCount: number }> {
+    const result = await this.expenseModel.deleteMany({
+      category: 'salaries',
+    });
+
+    // Reset all payrolls so they can be re-recorded
+    await this.payrollModel.updateMany(
+      { isRecordedAsExpense: true },
+      { $set: { isRecordedAsExpense: false, expenseId: null } },
+    );
+
+    return { deletedCount: result.deletedCount || 0 };
   }
 }
