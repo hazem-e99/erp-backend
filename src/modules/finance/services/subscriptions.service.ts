@@ -283,4 +283,23 @@ export class SubscriptionsService {
 
     return { activeCount, pendingCount, completedCount, cancelledCount };
   }
+
+  /**
+   * Delete a subscription and all its installments and revenue entries
+   */
+  async delete(id: string): Promise<void> {
+    const subscription = await this.subscriptionModel.findById(id);
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    // Delete all installments for this subscription
+    await this.installmentModel.deleteMany({ subscriptionId: id });
+
+    // Delete all revenue entries for this subscription
+    await this.revenueModel.deleteMany({ subscriptionId: id });
+
+    // Delete the subscription itself
+    await this.subscriptionModel.findByIdAndDelete(id);
+  }
 }

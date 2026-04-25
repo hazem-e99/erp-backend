@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -47,5 +47,12 @@ export class SubscriptionsController {
     @Body('reason') reason: string,
   ) {
     return this.subscriptionsService.cancel(id, reason);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('finance:update')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  delete(@Param('id', ParseObjectIdPipe) id: string) {
+    return this.subscriptionsService.delete(id);
   }
 }

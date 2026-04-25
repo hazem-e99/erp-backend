@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
@@ -133,5 +133,13 @@ export class RevenueService {
       { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
     ]);
     return result[0]?.total ?? 0;
+  }
+
+  async delete(id: string): Promise<void> {
+    const revenue = await this.revenueModel.findById(id);
+    if (!revenue) {
+      throw new NotFoundException('Revenue record not found');
+    }
+    await this.revenueModel.findByIdAndDelete(id);
   }
 }

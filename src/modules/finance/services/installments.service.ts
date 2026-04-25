@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
@@ -108,5 +108,13 @@ export class InstallmentsService {
       },
     ]);
     return result[0]?.total ?? 0;
+  }
+
+  async delete(id: string): Promise<void> {
+    const installment = await this.installmentModel.findById(id);
+    if (!installment) {
+      throw new NotFoundException('Installment not found');
+    }
+    await this.installmentModel.findByIdAndDelete(id);
   }
 }
