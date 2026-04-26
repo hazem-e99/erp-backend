@@ -78,11 +78,11 @@ export class Employee {
   @Prop({ default: 0 })
   usedLeaves: number;
 
-  @Prop({ default: null, enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay', null] })
-  paymentMethodType?: string | null;
+  @Prop({ type: String, default: null, enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  paymentMethodType?: string;
 
-  @Prop({ default: null })
-  paymentMethodDetails?: string | null;
+  @Prop({ type: String, default: null })
+  paymentMethodDetails?: string;
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);
