@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger, PreconditionFailedException, PayloadTooLargeException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Readable } from 'stream';
 import { addMonths } from 'date-fns';
 import { Subscription, SubscriptionDocument, SubscriptionStatus, PlanType, InstallmentPlan } from '../schemas/subscription.schema';
 import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
@@ -10,14 +11,32 @@ import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
 import { roundCents, calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
+import { GoogleDriveStorage } from '../../backup/storage/google-drive.storage';
+
+const ALLOWED_DOCUMENT_MIME = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'text/plain',
+  'text/csv',
+]);
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_DOCUMENTS_PER_SUBSCRIPTION = 10;
 
 @Injectable()
 export class SubscriptionsService {
+  private readonly logger = new Logger(SubscriptionsService.name);
+
   constructor(
     @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
     @InjectModel(Installment.name) private installmentModel: Model<InstallmentDocument>,
     @InjectModel(Revenue.name) private revenueModel: Model<RevenueDocument>,
     private readonly gateway: FinanceGateway,
+    private readonly googleDrive: GoogleDriveStorage,
   ) {}
 
   /**
@@ -285,7 +304,8 @@ export class SubscriptionsService {
   }
 
   /**
-   * Delete a subscription and all its installments and revenue entries
+   * Delete a subscription and all its installments, revenue entries, and Drive documents.
+   * Drive deletion is best-effort — failures are logged but don't block the cascade.
    */
   async delete(id: string): Promise<void> {
     const subscription = await this.subscriptionModel.findById(id);
@@ -293,13 +313,160 @@ export class SubscriptionsService {
       throw new NotFoundException('Subscription not found');
     }
 
-    // Delete all installments for this subscription
+    for (const doc of subscription.documents ?? []) {
+      try {
+        await this.googleDrive.deleteFromSubscriptionDocs(doc.driveFileId);
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to delete Drive file ${doc.driveFileId} for subscription ${id}: ${err.message}`,
+        );
+      }
+    }
+
     await this.installmentModel.deleteMany({ subscriptionId: id });
-
-    // Delete all revenue entries for this subscription
     await this.revenueModel.deleteMany({ subscriptionId: id });
-
-    // Delete the subscription itself
     await this.subscriptionModel.findByIdAndDelete(id);
+  }
+
+  // ─── Documents ─────────────────────────────────────────────────────────────
+
+  async listDocuments(subscriptionId: string) {
+    const sub = await this.subscriptionModel.findById(subscriptionId).lean();
+    if (!sub) throw new NotFoundException('Subscription not found');
+    return (sub.documents ?? []).map((d: any) => ({
+      _id: d._id?.toString(),
+      originalName: d.originalName,
+      mimeType: d.mimeType,
+      sizeBytes: d.sizeBytes,
+      uploadedAt: d.uploadedAt,
+    }));
+  }
+
+  async addDocuments(
+    subscriptionId: string,
+    files: Express.Multer.File[],
+    uploadedBy: string | null,
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided');
+    }
+
+    if (!(await this.googleDrive.isConfigured())) {
+      throw new PreconditionFailedException(
+        'Google Drive is not connected. Connect it in Settings → Backup before uploading documents.',
+      );
+    }
+
+    const sub = await this.subscriptionModel.findById(subscriptionId);
+    if (!sub) throw new NotFoundException('Subscription not found');
+
+    const existingCount = sub.documents?.length ?? 0;
+    if (existingCount + files.length > MAX_DOCUMENTS_PER_SUBSCRIPTION) {
+      throw new BadRequestException(
+        `A subscription can have at most ${MAX_DOCUMENTS_PER_SUBSCRIPTION} documents (current: ${existingCount}, attempted to add: ${files.length})`,
+      );
+    }
+
+    for (const f of files) {
+      if (!ALLOWED_DOCUMENT_MIME.has(f.mimetype)) {
+        throw new BadRequestException(
+          `File type not allowed: ${f.originalname} (${f.mimetype})`,
+        );
+      }
+      if (f.size > MAX_DOCUMENT_BYTES) {
+        throw new PayloadTooLargeException(
+          `File ${f.originalname} exceeds the 20 MB limit`,
+        );
+      }
+    }
+
+    // Upload in parallel; if any fail, best-effort delete the ones that succeeded.
+    const uploadResults = await Promise.allSettled(
+      files.map(async (f) => {
+        const uniqueName = `${subscriptionId}-${Date.now()}-${Math.round(Math.random() * 1e9)}-${f.originalname}`;
+        const result = await this.googleDrive.uploadToSubscriptionDocs(
+          Readable.from(f.buffer),
+          uniqueName,
+          f.mimetype,
+        );
+        return {
+          driveFileId: result.remoteKey,
+          originalName: f.originalname,
+          mimeType: f.mimetype,
+          sizeBytes: result.sizeBytes || f.size,
+          uploadedAt: new Date(),
+          uploadedBy,
+        };
+      }),
+    );
+
+    const succeeded = uploadResults
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+      .map((r) => r.value);
+    const failures = uploadResults.filter((r) => r.status === 'rejected');
+
+    if (failures.length > 0) {
+      // Roll back the successful uploads so the user can retry cleanly
+      await Promise.all(
+        succeeded.map((d) =>
+          this.googleDrive
+            .deleteFromSubscriptionDocs(d.driveFileId)
+            .catch((err) => this.logger.error(`Rollback delete failed: ${err.message}`)),
+        ),
+      );
+      const reason = (failures[0] as PromiseRejectedResult).reason;
+      throw new BadRequestException(
+        `Failed to upload one or more documents: ${reason?.message ?? 'unknown error'}`,
+      );
+    }
+
+    sub.documents.push(...succeeded);
+    await sub.save();
+
+    return {
+      added: succeeded.length,
+      documents: sub.documents.map((d: any) => ({
+        _id: d._id?.toString(),
+        originalName: d.originalName,
+        mimeType: d.mimeType,
+        sizeBytes: d.sizeBytes,
+        uploadedAt: d.uploadedAt,
+      })),
+    };
+  }
+
+  async streamDocument(subscriptionId: string, docId: string) {
+    const sub = await this.subscriptionModel.findById(subscriptionId).lean();
+    if (!sub) throw new NotFoundException('Subscription not found');
+    const doc = (sub.documents ?? []).find((d: any) => d._id?.toString() === docId);
+    if (!doc) throw new NotFoundException('Document not found');
+
+    const stream = await this.googleDrive.downloadFromSubscriptionDocs(doc.driveFileId);
+    return {
+      stream,
+      mimeType: doc.mimeType,
+      originalName: doc.originalName,
+      sizeBytes: doc.sizeBytes,
+    };
+  }
+
+  async removeDocument(subscriptionId: string, docId: string): Promise<void> {
+    const sub = await this.subscriptionModel.findById(subscriptionId);
+    if (!sub) throw new NotFoundException('Subscription not found');
+    const doc = sub.documents.find((d: any) => d._id?.toString() === docId);
+    if (!doc) throw new NotFoundException('Document not found');
+
+    try {
+      await this.googleDrive.deleteFromSubscriptionDocs(doc.driveFileId);
+    } catch (err: any) {
+      this.logger.error(`Drive delete failed for ${doc.driveFileId}: ${err.message}`);
+      // Continue and remove the metadata anyway — the file is already orphaned in Drive
+      // and we don't want the user stuck with a stale row they can't delete.
+    }
+
+    await this.subscriptionModel.updateOne(
+      { _id: subscriptionId },
+      { $pull: { documents: { _id: new Types.ObjectId(docId) } } },
+    );
   }
 }

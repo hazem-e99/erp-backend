@@ -92,6 +92,16 @@ export class CreateEmployeeDto {
   @IsArray()
   @IsString({ each: true })
   contractTypes?: string[];
+
+  @ApiPropertyOptional({ enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  @IsOptional()
+  @IsEnum(['mobile_wallet', 'visa', 'bank_account', 'instapay'])
+  paymentMethodType?: string;
+
+  @ApiPropertyOptional({ example: '+201001234567' })
+  @IsOptional()
+  @IsString()
+  paymentMethodDetails?: string;
 }
 
 export class UpdateEmployeeDto {
@@ -176,6 +186,16 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsNumber()
   annualLeaves?: number;
+
+  @ApiPropertyOptional({ enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  @IsOptional()
+  @IsEnum(['mobile_wallet', 'visa', 'bank_account', 'instapay'])
+  paymentMethodType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentMethodDetails?: string;
 }
 
 export class UpdateProfileDto {

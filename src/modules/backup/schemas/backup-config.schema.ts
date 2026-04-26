@@ -24,6 +24,9 @@ export class BackupConfig {
   @Prop({ type: String, default: null })
   driveFolderId!: string | null;
 
+  @Prop({ type: String, default: null })
+  subscriptionDocsFolderId!: string | null;
+
   @Prop({ type: Date, default: null })
   connectedAt!: Date | null;
 

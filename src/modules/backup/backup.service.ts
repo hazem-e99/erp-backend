@@ -73,36 +73,39 @@ export class BackupService {
     return uri;
   }
 
+  private resolveBinary(envKey: string, systemName: string): string {
+    const exeSuffix = process.platform === 'win32' ? '.exe' : '';
+    const configured = this.config.get<string>(envKey, systemName);
+
+    // Build candidate list: configured path (+ .exe on Windows), render path, system name
+    const candidates: string[] = [configured];
+    if (process.platform === 'win32' && !configured.endsWith('.exe')) {
+      candidates.push(configured + '.exe');
+    }
+    candidates.push('/opt/render/project/src/bin/' + systemName);
+
+    for (const c of candidates) {
+      // Bare name (no path separator) means rely on PATH — skip existsSync
+      const isBareCommand = !c.includes('/') && !c.includes('\\');
+      if (isBareCommand) continue;
+      const resolved = path.resolve(c);
+      if (fs.existsSync(resolved)) return resolved;
+    }
+
+    // Last resort: bare system name and let the OS resolve via PATH
+    const bare = systemName + exeSuffix;
+    this.logger.warn(
+      `${systemName} binary not found at any candidate path; falling back to "${bare}" on PATH`,
+    );
+    return bare;
+  }
+
   private dumpBinary(): string {
-    const configPath = this.config.get<string>('MONGODUMP_BIN', 'mongodump');
-    // Check if the configured binary exists, fallback to system binary
-    if (configPath !== 'mongodump' && fs.existsSync(configPath)) {
-      return configPath;
-    }
-    // Try common paths on Render
-    const renderPath = '/opt/render/project/src/bin/mongodump';
-    if (fs.existsSync(renderPath)) {
-      return renderPath;
-    }
-    // Fallback to system mongodump
-    this.logger.warn(`mongodump binary not found at ${configPath}, using system mongodump`);
-    return 'mongodump';
+    return this.resolveBinary('MONGODUMP_BIN', 'mongodump');
   }
 
   private restoreBinary(): string {
-    const configPath = this.config.get<string>('MONGORESTORE_BIN', 'mongorestore');
-    // Check if the configured binary exists, fallback to system binary
-    if (configPath !== 'mongorestore' && fs.existsSync(configPath)) {
-      return configPath;
-    }
-    // Try common paths on Render
-    const renderPath = '/opt/render/project/src/bin/mongorestore';
-    if (fs.existsSync(renderPath)) {
-      return renderPath;
-    }
-    // Fallback to system mongorestore
-    this.logger.warn(`mongorestore binary not found at ${configPath}, using system mongorestore`);
-    return 'mongorestore';
+    return this.resolveBinary('MONGORESTORE_BIN', 'mongorestore');
   }
 
   private buildFilename(): string {
@@ -152,7 +155,18 @@ export class BackupService {
     child.stdout.pipe(sizeTracker);
 
     const childExit = new Promise<void>((resolve, reject) => {
-      child.on('error', reject);
+      child.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ENOENT') {
+          reject(
+            new Error(
+              `mongodump binary not found. Install MongoDB Database Tools and set MONGODUMP_BIN in .env, ` +
+                `or add mongodump to your system PATH. (tried: ${this.dumpBinary()})`,
+            ),
+          );
+        } else {
+          reject(err);
+        }
+      });
       child.on('exit', (code) => {
         if (code === 0) resolve();
         else reject(new Error(`mongodump exited with code ${code}: ${stderrBuf.slice(-500)}`));
@@ -402,7 +416,18 @@ export class BackupService {
         });
 
         const childExit = new Promise<void>((resolve, reject) => {
-          child.on('error', reject);
+          child.on('error', (err: NodeJS.ErrnoException) => {
+            if (err.code === 'ENOENT') {
+              reject(
+                new Error(
+                  `mongorestore binary not found. Install MongoDB Database Tools and set MONGORESTORE_BIN in .env, ` +
+                    `or add mongorestore to your system PATH. (tried: ${this.restoreBinary()})`,
+                ),
+              );
+            } else {
+              reject(err);
+            }
+          });
           child.on('exit', (code) => {
             if (code === 0) resolve();
             else reject(new Error(`mongorestore exited with code ${code}: ${stderrBuf.slice(-500)}`));

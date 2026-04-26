@@ -23,6 +23,29 @@ export enum InstallmentPlan {
   CUSTOM = 'custom',
 }
 
+@Schema({ _id: true })
+export class SubscriptionFile {
+  @Prop({ required: true })
+  driveFileId!: string;
+
+  @Prop({ required: true })
+  originalName!: string;
+
+  @Prop({ required: true })
+  mimeType!: string;
+
+  @Prop({ required: true, min: 0 })
+  sizeBytes!: number;
+
+  @Prop({ type: Date, default: Date.now })
+  uploadedAt!: Date;
+
+  @Prop({ type: String, default: null })
+  uploadedBy!: string | null;
+}
+
+export const SubscriptionFileSchema = SchemaFactory.createForClass(SubscriptionFile);
+
 @Schema({ timestamps: true })
 export class Subscription {
   @Prop({ type: Types.ObjectId, ref: 'Client', required: true })
@@ -72,6 +95,9 @@ export class Subscription {
 
   @Prop({ default: '' })
   cancelReason!: string;
+
+  @Prop({ type: [SubscriptionFileSchema], default: [] })
+  documents!: SubscriptionFile[];
 }
 
 export const SubscriptionSchema = SchemaFactory.createForClass(Subscription);

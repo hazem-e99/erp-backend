@@ -52,3 +52,6 @@ temp/
 # NestJS specific
 dist/
 node_modules/
+
+# MongoDB Database Tools binaries (download locally, not committed)
+bin/

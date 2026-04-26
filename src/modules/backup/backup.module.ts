@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { BackupController } from './backup.controller';
 import { BackupService } from './backup.service';
+import { JsonExportService } from './json-export.service';
 import { BackupScheduler, BackupTriggerController } from './backup.scheduler';
 import { GoogleOAuthController } from './google-oauth.controller';
 import { GoogleDriveStorage } from './storage/google-drive.storage';
@@ -45,6 +46,7 @@ import { AuditModule } from '../audit/audit.module';
   controllers: [BackupController, GoogleOAuthController, BackupTriggerController],
   providers: [
     BackupService,
+    JsonExportService,
     BackupScheduler,
     GoogleDriveStorage,
     LocalStorage,
@@ -63,6 +65,6 @@ import { AuditModule } from '../audit/audit.module';
       },
     },
   ],
-  exports: [BackupService, MaintenanceLockService],
+  exports: [BackupService, MaintenanceLockService, GoogleDriveStorage],
 })
 export class BackupModule {}

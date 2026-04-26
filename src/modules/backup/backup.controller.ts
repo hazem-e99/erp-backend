@@ -26,6 +26,7 @@ import { BackupService, ActorContext } from './backup.service';
 import { BackupSource } from './schemas/backup-record.schema';
 import { RestoreDto, RestoreExistingDto } from './dto/restore.dto';
 import { GoogleDriveStorage } from './storage/google-drive.storage';
+import { JsonExportService } from './json-export.service';
 
 function extractActor(req: express.Request): ActorContext {
   const u: any = (req as any).user ?? {};
@@ -46,6 +47,7 @@ export class BackupController {
   constructor(
     private readonly backupService: BackupService,
     private readonly driveStorage: GoogleDriveStorage,
+    private readonly jsonExportService: JsonExportService,
   ) {}
 
   @Post('export')
@@ -83,6 +85,25 @@ export class BackupController {
         completedAt: r.completedAt,
       })),
     };
+  }
+
+  @Get('export-json')
+  @RequirePermissions('backup:export')
+  @ApiOperation({ summary: 'Download full database as a browsable JSON ZIP (download-only, not restorable)' })
+  async exportJson(@Req() req: express.Request, @Res() res: express.Response) {
+    const actor = extractActor(req);
+    const filename = this.jsonExportService.buildFilename();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    try {
+      await this.jsonExportService.streamJsonArchive(res, actor);
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ message: err?.message ?? 'JSON export failed' });
+      } else {
+        res.destroy(err);
+      }
+    }
   }
 
   @Get('storage-status')

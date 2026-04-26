@@ -26,9 +26,11 @@ import { ReportsController } from './controllers/reports.controller';
 
 import { FinanceGateway } from './finance.gateway';
 import { FinanceScheduler } from './finance.scheduler';
+import { BackupModule } from '../backup/backup.module';
 
 @Module({
   imports: [
+    BackupModule,
     MongooseModule.forFeature([
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: Installment.name, schema: InstallmentSchema },

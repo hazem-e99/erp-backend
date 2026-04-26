@@ -144,12 +144,12 @@ export class GoogleDriveStorage implements IBackupStorage {
     return google.drive({ version: 'v3', auth });
   }
 
-  private async ensureFolderId(auth: OAuth2Client): Promise<string> {
-    const folderName = this.config.get<string>('GOOGLE_DRIVE_FOLDER_NAME', 'ERP-Backups');
+  private async ensureFolderId(auth: OAuth2Client, folderName?: string): Promise<string> {
+    const name = folderName ?? this.config.get<string>('GOOGLE_DRIVE_FOLDER_NAME', 'ERP-Backups');
     const drive = this.driveClient(auth);
 
     const existing = await drive.files.list({
-      q: `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${folderName.replace(/'/g, "\\'")}'`,
+      q: `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${name.replace(/'/g, "\\'")}'`,
       fields: 'files(id,name)',
       pageSize: 1,
     });
@@ -158,13 +158,124 @@ export class GoogleDriveStorage implements IBackupStorage {
     }
 
     const created = await drive.files.create({
-      requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder' },
+      requestBody: { name, mimeType: 'application/vnd.google-apps.folder' },
       fields: 'id',
     });
     if (!created.data.id) {
       throw new InternalServerErrorException('Failed to create Google Drive folder');
     }
     return created.data.id;
+  }
+
+  private cachedSubscriptionDocsFolderId: string | null = null;
+  private subscriptionDocsFolderPromise: Promise<string> | null = null;
+
+  private async ensureSubscriptionDocsFolderId(): Promise<string> {
+    if (this.cachedSubscriptionDocsFolderId) {
+      return this.cachedSubscriptionDocsFolderId;
+    }
+    if (this.subscriptionDocsFolderPromise) {
+      return this.subscriptionDocsFolderPromise;
+    }
+
+    this.subscriptionDocsFolderPromise = (async () => {
+      const cfg = await this.backupConfigModel.findOne().exec();
+      if (cfg?.subscriptionDocsFolderId) {
+        // Verify the persisted folder still exists in Drive (user may have deleted it).
+        const auth = await this.getAuthedClient();
+        const drive = this.driveClient(auth);
+        try {
+          const check = await drive.files.get({
+            fileId: cfg.subscriptionDocsFolderId,
+            fields: 'id,trashed',
+          });
+          if (check.data.id && !check.data.trashed) {
+            this.cachedSubscriptionDocsFolderId = cfg.subscriptionDocsFolderId;
+            return cfg.subscriptionDocsFolderId;
+          }
+        } catch (err: any) {
+          if (err?.code !== 404) {
+            this.logger.warn(`Subscription docs folder verify failed: ${err.message}`);
+          }
+          // Fall through and recreate
+        }
+      }
+
+      const auth = await this.getAuthedClient();
+      const folderId = await this.ensureFolderId(auth, 'ERP-Subscription-Docs');
+      await this.backupConfigModel.findOneAndUpdate(
+        {},
+        { subscriptionDocsFolderId: folderId },
+        { upsert: true },
+      );
+      this.cachedSubscriptionDocsFolderId = folderId;
+      this.logger.log(`Subscription docs folder resolved: ${folderId}`);
+      return folderId;
+    })().finally(() => {
+      this.subscriptionDocsFolderPromise = null;
+    });
+
+    return this.subscriptionDocsFolderPromise;
+  }
+
+  async uploadToSubscriptionDocs(
+    stream: Readable,
+    filename: string,
+    mimeType: string,
+  ): Promise<UploadResult> {
+    const folderId = await this.ensureSubscriptionDocsFolderId();
+    const auth = await this.getAuthedClient();
+    const drive = this.driveClient(auth);
+
+    let uploadedBytes = 0;
+    const progressStream = new PassThrough();
+    progressStream.on('data', (chunk: Buffer) => {
+      uploadedBytes += chunk.length;
+    });
+    stream.pipe(progressStream);
+    stream.on('error', (err) => {
+      this.logger.error(`Subscription doc upload stream error: ${err.message}`);
+      progressStream.destroy(err);
+    });
+
+    try {
+      const res = await drive.files.create({
+        requestBody: { name: filename, parents: [folderId] },
+        media: { mimeType, body: progressStream },
+        fields: 'id,size',
+      });
+      const remoteKey = res.data.id;
+      if (!remoteKey) {
+        throw new InternalServerErrorException('Drive upload returned no file id');
+      }
+      const reportedSize = res.data.size ? Number(res.data.size) : uploadedBytes;
+      this.logger.log(`Uploaded subscription doc ${filename} (${reportedSize} bytes) → ${remoteKey}`);
+      return { remoteKey, sizeBytes: reportedSize };
+    } catch (err: any) {
+      this.logger.error(`Subscription doc upload failed: ${err.message}`);
+      throw new InternalServerErrorException(`Drive upload failed: ${err.message}`);
+    }
+  }
+
+  async downloadFromSubscriptionDocs(remoteKey: string): Promise<Readable> {
+    const auth = await this.getAuthedClient();
+    const drive = this.driveClient(auth);
+    const res = await drive.files.get(
+      { fileId: remoteKey, alt: 'media' },
+      { responseType: 'stream' },
+    );
+    return res.data as unknown as Readable;
+  }
+
+  async deleteFromSubscriptionDocs(remoteKey: string): Promise<void> {
+    const auth = await this.getAuthedClient();
+    const drive = this.driveClient(auth);
+    try {
+      await drive.files.delete({ fileId: remoteKey });
+    } catch (err: any) {
+      if (err?.code === 404) return;
+      throw err;
+    }
   }
 
   async upload(
