@@ -33,6 +33,7 @@ export class EmailService {
       '3days': '3 أيام',
       '24hours': '24 ساعة',
       'sameday': 'اليوم',
+      'monthly': 'تذكير شهري',
     };
 
     const htmlContent = `

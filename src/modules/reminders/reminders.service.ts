@@ -54,7 +54,7 @@ export class RemindersService {
     return { message: 'Reminder deleted successfully' };
   }
 
-  // Get pending reminders that need to be sent
+  // Get pending reminders that need to be sent (existing period-based logic)
   async getPendingReminders(debugMode = false): Promise<Array<{ reminder: any; period: string }>> {
     const now = new Date();
     const reminders = await this.reminderModel
@@ -116,6 +116,73 @@ export class RemindersService {
     }
 
     return pendingToSend;
+  }
+
+  // Get monthly recurring reminders that should fire today
+  async getMonthlyRecurringReminders(debugMode = false): Promise<Array<{ reminder: any; period: string }>> {
+    const now = new Date();
+    const todayDay = now.getDate();
+    const todayStr = now.toISOString().split('T')[0]; // e.g. '2026-04-26'
+
+    const recurringReminders = await this.reminderModel
+      .find({
+        isMonthlyRecurring: true,
+        monthlyDay: todayDay,
+        status: { $ne: 'cancelled' },
+      })
+      .populate('userId', 'email name')
+      .exec();
+
+    if (debugMode) {
+      console.log(`   🔁 ${recurringReminders.length} monthly recurring reminder(s) for day ${todayDay}`);
+    }
+
+    const pendingToSend: Array<{ reminder: any; period: string }> = [];
+
+    for (const reminder of recurringReminders) {
+      // Check if we already sent today (using lastMonthlyReset to track)
+      const lastReset = reminder.lastMonthlyReset
+        ? new Date(reminder.lastMonthlyReset).toISOString().split('T')[0]
+        : null;
+
+      if (lastReset === todayStr) {
+        if (debugMode) {
+          console.log(`   - Skipping "${reminder.title}" (already sent today)`);
+        }
+        continue; // Already processed today
+      }
+
+      pendingToSend.push({ reminder, period: 'monthly' });
+    }
+
+    return pendingToSend;
+  }
+
+  // After sending a monthly recurring email, advance to next month
+  async advanceToNextMonth(reminderId: string) {
+    const now = new Date();
+    const reminder = await this.reminderModel.findById(reminderId);
+    if (!reminder) return;
+
+    // Calculate next month's date
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, reminder.monthlyDay);
+    
+    // Handle day overflow (e.g. day 31 in a month with 30 days)
+    if (nextMonth.getDate() !== reminder.monthlyDay) {
+      // Set to last day of the target month
+      nextMonth.setDate(0); // Goes to last day of previous month (which is our target)
+    }
+
+    return this.reminderModel.findByIdAndUpdate(
+      reminderId,
+      {
+        reminderDate: nextMonth,
+        lastMonthlyReset: now,
+        sentAt: [], // Clear sent history for new cycle
+        status: 'pending', // Re-enable if it was completed
+      },
+      { new: true },
+    );
   }
 
   async markAsSent(reminderId: string) {

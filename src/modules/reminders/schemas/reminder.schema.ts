@@ -18,6 +18,15 @@ export class Reminder extends Document {
   @Prop({ type: [String], default: [] })
   reminderPeriods: string[]; // ['7days', '3days', '24hours', 'sameday']
 
+  @Prop({ type: Boolean, default: false })
+  isMonthlyRecurring: boolean;
+
+  @Prop({ type: Number, min: 1, max: 31 })
+  monthlyDay: number; // Day of the month (1-31)
+
+  @Prop({ type: Date })
+  lastMonthlyReset: Date; // Track last auto-advance to prevent duplicates
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
