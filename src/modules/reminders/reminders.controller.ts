@@ -14,6 +14,8 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { RemindersService } from './reminders.service';
 import { EmailService } from '../email/email.service';
 import { CreateReminderDto, UpdateReminderDto } from './dto/reminder.dto';
+import { UpsertAllPayrollReminderDto, UpsertInternPayrollReminderDto } from './dto/payroll-reminder.dto';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -31,6 +33,34 @@ export class RemindersController {
   @ApiOperation({ summary: 'Create a new reminder' })
   create(@Body() createReminderDto: CreateReminderDto, @CurrentUser('userId') userId: string) {
     return this.remindersService.create(createReminderDto, userId);
+  }
+
+  @Get('payroll')
+  @RequirePermissions('reminders:read')
+  @ApiOperation({ summary: 'Get payroll reminder settings' })
+  getPayrollReminders() {
+    return this.remindersService.getPayrollReminders();
+  }
+
+  @Post('payroll/all')
+  @RequirePermissions('reminders:update')
+  @ApiOperation({ summary: 'Set monthly reminder day for all payroll' })
+  upsertAllPayrollReminder(@Body() dto: UpsertAllPayrollReminderDto) {
+    return this.remindersService.upsertAllPayrollReminder(dto);
+  }
+
+  @Post('payroll/intern')
+  @RequirePermissions('reminders:update')
+  @ApiOperation({ summary: 'Set monthly reminder day for an internship employee' })
+  upsertInternPayrollReminder(@Body() dto: UpsertInternPayrollReminderDto) {
+    return this.remindersService.upsertInternPayrollReminder(dto);
+  }
+
+  @Delete('payroll/intern/:employeeId')
+  @RequirePermissions('reminders:delete')
+  @ApiOperation({ summary: 'Delete internship payroll reminder' })
+  deleteInternPayrollReminder(@Param('employeeId', ParseObjectIdPipe) employeeId: string) {
+    return this.remindersService.deleteInternPayrollReminder(employeeId);
   }
 
   @Get()

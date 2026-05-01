@@ -344,6 +344,67 @@ export class PayrollService {
   }
 
   /**
+   * Mark paid payrolls for a single employee as one expense
+   */
+  async markAsExpenseForEmployee(
+    employeeId: string,
+    month?: number,
+    year?: number,
+    expenseDate?: string,
+  ): Promise<{ total: number; count: number; expense: any }> {
+    const targetMonth = Number(month ?? new Date().getMonth() + 1);
+    const targetYear = Number(year ?? new Date().getFullYear());
+
+    const employee = await this.employeeModel.findById(employeeId);
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    const pendingPayrolls = await this.payrollModel.find({
+      status: 'paid',
+      isRecordedAsExpense: false,
+      month: targetMonth,
+      year: targetYear,
+      employeeId: employee._id,
+    });
+
+    if (pendingPayrolls.length === 0) {
+      throw new NotFoundException(`No paid payrolls to record for ${employee.name} in ${targetMonth}/${targetYear}`);
+    }
+
+    const totalBaseAmount = pendingPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
+
+    let date = new Date();
+    if (expenseDate) {
+      const [yearPart, monthPart, dayPart] = expenseDate.split('-').map(Number);
+      date = new Date(Date.UTC(yearPart, monthPart - 1, dayPart));
+    } else {
+      date = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    }
+
+    const expense = await this.expenseModel.create({
+      amount: totalBaseAmount,
+      currency: BASE_CURRENCY,
+      exchangeRate: 1,
+      baseAmount: totalBaseAmount,
+      category: 'salaries',
+      date: date,
+      description: `Salary payment for ${employee.name} (${employee.employeeId}) in ${targetMonth}/${targetYear}`,
+      attachmentUrl: '',
+    });
+
+    const payrollIds = pendingPayrolls.map(p => p._id);
+    await this.payrollModel.updateMany(
+      { _id: { $in: payrollIds } },
+      { $set: { isRecordedAsExpense: true, expenseId: expense._id } },
+    );
+
+    return {
+      total: totalBaseAmount,
+      count: pendingPayrolls.length,
+      expense,
+    };
+  }
+
+  /**
    * Recalculate and update the salary expense record for a given month/year
    */
   async updateExpense(month: number, year: number): Promise<{ total: number; count: number }> {

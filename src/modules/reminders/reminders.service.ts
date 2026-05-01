@@ -2,13 +2,49 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Reminder } from './schemas/reminder.schema';
+import { PayrollReminder, PayrollReminderDocument } from './schemas/payroll-reminder.schema';
+import { UpsertAllPayrollReminderDto, UpsertInternPayrollReminderDto } from './dto/payroll-reminder.dto';
 import { CreateReminderDto, UpdateReminderDto } from './dto/reminder.dto';
 
 @Injectable()
 export class RemindersService {
   constructor(
     @InjectModel(Reminder.name) private reminderModel: Model<Reminder>,
+    @InjectModel(PayrollReminder.name) private payrollReminderModel: Model<PayrollReminderDocument>,
   ) {}
+
+  async getPayrollReminders() {
+    const [allReminder, internReminders] = await Promise.all([
+      this.payrollReminderModel.findOne({ type: 'all' }).lean(),
+      this.payrollReminderModel.find({ type: 'intern' }).lean(),
+    ]);
+
+    return { allReminder, internReminders };
+  }
+
+  async upsertAllPayrollReminder(dto: UpsertAllPayrollReminderDto) {
+    return this.payrollReminderModel.findOneAndUpdate(
+      { type: 'all' },
+      { $set: { dayOfMonth: dto.dayOfMonth, type: 'all' } },
+      { new: true, upsert: true },
+    );
+  }
+
+  async upsertInternPayrollReminder(dto: UpsertInternPayrollReminderDto) {
+    return this.payrollReminderModel.findOneAndUpdate(
+      { type: 'intern', employeeId: dto.employeeId },
+      { $set: { dayOfMonth: dto.dayOfMonth, type: 'intern', employeeId: dto.employeeId } },
+      { new: true, upsert: true },
+    );
+  }
+
+  async deleteInternPayrollReminder(employeeId: string) {
+    const result = await this.payrollReminderModel.deleteOne({ type: 'intern', employeeId });
+    if (result.deletedCount === 0) {
+      throw new NotFoundException('Payroll reminder not found');
+    }
+    return { message: 'Payroll reminder deleted' };
+  }
 
   async create(createReminderDto: CreateReminderDto, userId: string) {
     const reminder = new this.reminderModel({

@@ -55,6 +55,13 @@ export class PayrollController {
     return this.payrollService.markAsExpenses(body.month, body.year, body.expenseDate);
   }
 
+  @Post('mark-as-expense-employee')
+  @RequirePermissions('payroll:create')
+  @ApiOperation({ summary: 'Mark paid payrolls for a single employee as expenses' })
+  markEmployeeAsExpense(@Body() body: { employeeId: string; month?: number; year?: number; expenseDate?: string }) {
+    return this.payrollService.markAsExpenseForEmployee(body.employeeId, body.month, body.year, body.expenseDate);
+  }
+
   @Post('update-expense')
   @RequirePermissions('payroll:update')
   @ApiOperation({ summary: 'Update the salary expense record for a given month' })
