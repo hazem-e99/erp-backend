@@ -3,9 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { Employee, EmployeeDocument } from './schemas/employee.schema';
+import { Payroll, PayrollDocument } from '../payroll/schemas/payroll.schema';
+import { EmployeeSettlement, EmployeeSettlementDocument } from './schemas/employee-settlement.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto, UpdateProfileDto, ChangePasswordDto, AdminResetPasswordDto } from './dto/employee.dto';
+import { CreateEmployeeSettlementDto } from './dto/settlement.dto';
 import { calculateBaseAmount } from '../finance/validators/finance.validators';
 import { BASE_CURRENCY } from '../finance/constants/currency.constants';
 
@@ -15,7 +18,20 @@ export class EmployeesService {
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
+    @InjectModel(Payroll.name) private payrollModel: Model<PayrollDocument>,
+    @InjectModel(EmployeeSettlement.name) private settlementModel: Model<EmployeeSettlementDocument>,
   ) {}
+
+  private async terminateEmployeeCore(emp: EmployeeDocument) {
+    emp.status = 'terminated';
+    await emp.save();
+
+    // Deactivate user account
+    await this.userModel.findByIdAndUpdate(emp.userId, { isActive: false });
+
+    // Remove all payroll records for this employee
+    await this.payrollModel.deleteMany({ employeeId: emp._id });
+  }
 
   async findAll(query: any = {}) {
     const { page = 1, limit = 20, search, department, status } = query;
@@ -205,13 +221,51 @@ export class EmployeesService {
     const emp = await this.employeeModel.findById(id);
     if (!emp) throw new NotFoundException('Employee not found');
 
-    emp.status = 'terminated';
-    await emp.save();
-
-    // Deactivate user account
-    await this.userModel.findByIdAndUpdate(emp.userId, { isActive: false });
+    await this.terminateEmployeeCore(emp);
 
     return { message: 'Employee terminated and account deactivated' };
+  }
+
+  /**
+   * Terminate employee + record final settlement
+   */
+  async terminateWithSettlement(id: string, dto: CreateEmployeeSettlementDto) {
+    const emp = await this.employeeModel.findById(id);
+    if (!emp) throw new NotFoundException('Employee not found');
+
+    await this.terminateEmployeeCore(emp);
+
+    const accruedSalary = dto.accruedSalary ?? 0;
+    const bonuses = dto.bonuses ?? 0;
+    const deductions = dto.deductions ?? 0;
+    const otherAdjustments = dto.otherAdjustments ?? 0;
+    const netSettlement = accruedSalary + bonuses - deductions + otherAdjustments;
+
+    const currency = emp.currency || BASE_CURRENCY;
+    const exchangeRate = emp.exchangeRate || 1;
+
+    const settlement = await this.settlementModel.create({
+      employeeId: emp._id,
+      employeeName: emp.name,
+      employeeNumber: emp.employeeId,
+      currency,
+      exchangeRate,
+      terminationDate: dto.terminationDate,
+      lastWorkingDay: dto.lastWorkingDay,
+      accruedSalary,
+      bonuses,
+      deductions,
+      otherAdjustments,
+      netSettlement,
+      baseAccruedSalary: calculateBaseAmount(accruedSalary, exchangeRate),
+      baseBonuses: calculateBaseAmount(bonuses, exchangeRate),
+      baseDeductions: calculateBaseAmount(deductions, exchangeRate),
+      baseOtherAdjustments: calculateBaseAmount(otherAdjustments, exchangeRate),
+      baseNetSettlement: calculateBaseAmount(netSettlement, exchangeRate),
+      notes: dto.notes || '',
+    });
+
+    return { message: 'Employee terminated and settlement recorded', settlement };
   }
 
   /**

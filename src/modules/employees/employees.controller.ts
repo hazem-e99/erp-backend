@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto, UpdateEmployeeDto, UpdateProfileDto, ChangePasswordDto, AdminResetPasswordDto } from './dto/employee.dto';
+import { CreateEmployeeSettlementDto } from './dto/settlement.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -73,6 +74,16 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Soft-delete (terminate) employee' })
   delete(@Param('id', ParseObjectIdPipe) id: string) {
     return this.employeesService.delete(id);
+  }
+
+  @Post(':id/terminate')
+  @RequirePermissions('employees:delete')
+  @ApiOperation({ summary: 'Terminate employee + record final settlement' })
+  terminateWithSettlement(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CreateEmployeeSettlementDto,
+  ) {
+    return this.employeesService.terminateWithSettlement(id, dto);
   }
 
   @Delete(':id/permanent')
