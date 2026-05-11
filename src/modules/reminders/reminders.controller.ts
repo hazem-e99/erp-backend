@@ -98,7 +98,7 @@ export class RemindersController {
   @Post('test-email')
   @ApiOperation({ summary: 'Test email sending (for debugging)' })
   async testEmail(@CurrentUser('userId') userId: string) {
-    const testEmailTo = process.env.EMAIL_USER;
+    const testEmailTo = process.env.EMAIL_USER ?? '';
     try {
       console.log('📧 Testing email sending...');
       
