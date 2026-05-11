@@ -98,12 +98,13 @@ export class RemindersController {
   @Post('test-email')
   @ApiOperation({ summary: 'Test email sending (for debugging)' })
   async testEmail(@CurrentUser('userId') userId: string) {
+    const testEmailTo = process.env.EMAIL_USER;
     try {
       console.log('📧 Testing email sending...');
       
       // Send a test email
       await this.emailService.sendReminderEmail(
-        'hazem@intlakaa.com',
+        testEmailTo,
         'تذكير تجريبي من نظام ERP',
         {
           title: 'اختبار إرسال البريد الإلكتروني',
@@ -114,10 +115,10 @@ export class RemindersController {
         }
       );
       
-      console.log('✅ Test email sent successfully to hazem@intlakaa.com');
+      console.log(`✅ Test email sent successfully to ${testEmailTo}`);
       return { 
         success: true, 
-        message: 'Test email sent to hazem@intlakaa.com',
+        message: `Test email sent to ${testEmailTo}`,
         timestamp: new Date()
       };
     } catch (error) {
