@@ -53,6 +53,18 @@ export class Payment {
   // overflow amount applied to next installment(s)
   @Prop({ default: 0 })
   overpaymentAmount!: number;
+
+  @Prop({ default: 0, min: 0, max: 100 })
+  gateFeePercentage!: number;
+
+  @Prop({ default: 0, min: 0 })
+  gateFeeAmount!: number; // Original currency
+
+  @Prop({ default: 0, min: 0 })
+  baseGateFeeAmount!: number; // Base currency
+
+  @Prop({ default: 0, min: 0 })
+  baseNetAmount!: number; // baseAmount - baseGateFeeAmount
 }
 
 export const PaymentSchema = SchemaFactory.createForClass(Payment);

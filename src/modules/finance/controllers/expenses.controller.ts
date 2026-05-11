@@ -1,6 +1,7 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, Query,
+  Controller, Get, Post, Put, Delete, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFile, HttpCode, HttpStatus,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
@@ -10,10 +11,27 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { ExpensesService } from '../services/expenses.service';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
+import { UpdateExpenseDto } from '../dto/update-expense.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { ParseObjectIdPipe } from '../../../common/pipes/parse-objectid.pipe';
 
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+const expenseFileStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads', 'expenses'),
+  filename: (_req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `expense-${unique}${extname(file.originalname)}`);
+  },
+});
+
+const ensureWithinSize = (file?: Express.Multer.File) => {
+  if (file && file.size > MAX_ATTACHMENT_BYTES) {
+    throw new PayloadTooLargeException(
+      `Attachment exceeds the 20 MB limit (got ${(file.size / (1024 * 1024)).toFixed(2)} MB)`,
+    );
+  }
+};
 
 @Controller('finance/expenses')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -25,29 +43,35 @@ export class ExpensesController {
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('attachment', {
-      storage: diskStorage({
-        destination: join(process.cwd(), 'uploads', 'expenses'),
-        filename: (_req, file, cb) => {
-          const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, `expense-${unique}${extname(file.originalname)}`);
-        },
-      }),
-      fileFilter: (_req, file, cb) => {
-        if (ALLOWED_MIME.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Only JPEG, PNG, WebP, and PDF are allowed'), false);
-        }
-      },
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      storage: expenseFileStorage,
+      limits: { fileSize: MAX_ATTACHMENT_BYTES },
     }),
   )
   async create(
     @Body() dto: CreateExpenseDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+    ensureWithinSize(file);
     const attachmentUrl = file ? `/uploads/expenses/${file.filename}` : undefined;
     return this.expensesService.create(dto, attachmentUrl);
+  }
+
+  @Put(':id')
+  @RequirePermissions('finance:update')
+  @UseInterceptors(
+    FileInterceptor('attachment', {
+      storage: expenseFileStorage,
+      limits: { fileSize: MAX_ATTACHMENT_BYTES },
+    }),
+  )
+  async update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateExpenseDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    ensureWithinSize(file);
+    const attachmentUrl = file ? `/uploads/expenses/${file.filename}` : undefined;
+    return this.expensesService.update(id, dto, attachmentUrl);
   }
 
   @Get()

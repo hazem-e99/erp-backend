@@ -87,6 +87,18 @@ export class Subscription {
   @Prop({ default: 0 })
   paidAmount!: number; // Always in base currency
 
+  @Prop({ default: 0, min: 0, max: 100 })
+  gateFeePercentage!: number;
+
+  @Prop({ default: 0, min: 0 })
+  gateFeeAmount!: number; // Original currency
+
+  @Prop({ default: 0, min: 0 })
+  baseGateFeeAmount!: number; // Base currency
+
+  @Prop({ default: 0, min: 0 })
+  baseNetTotalPrice!: number; // baseTotalPrice - baseGateFeeAmount
+
   @Prop({ required: true })
   description!: string;
 

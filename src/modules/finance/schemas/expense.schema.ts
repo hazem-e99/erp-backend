@@ -6,6 +6,7 @@ export type ExpenseDocument = Expense & Document;
 
 export enum ExpenseCategory {
   SALARIES = 'salaries',
+  COMMISSIONS = 'commissions',
   ADS = 'ads',
   BANK_FEES = 'bank_fees',
   TOOLS = 'tools',

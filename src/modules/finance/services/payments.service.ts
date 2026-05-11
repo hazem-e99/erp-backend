@@ -5,6 +5,7 @@ import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/
 import { Subscription, SubscriptionDocument, SubscriptionStatus } from '../schemas/subscription.schema';
 import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { UpdatePaymentDto } from '../dto/update-payment.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
@@ -70,6 +71,12 @@ export class PaymentsService {
       throw FinanceErrors.PAYMENT_CONFLICT();
     }
 
+    // Gate fees: deducted from incoming amount (customer pays full amount)
+    const gateFeePercentage = dto.gateFeePercentage ?? 0;
+    const gateFeeAmount = parseFloat(((dto.amount * gateFeePercentage) / 100).toFixed(2));
+    const baseGateFeeAmount = parseFloat(((paymentBaseAmount * gateFeePercentage) / 100).toFixed(2));
+    const baseNetAmount = parseFloat((paymentBaseAmount - baseGateFeeAmount).toFixed(2));
+
     // Create payment record
     const payment = new this.paymentModel({
       subscriptionId: new Types.ObjectId(dto.subscriptionId),
@@ -85,6 +92,10 @@ export class PaymentsService {
       reference: dto.reference ?? '',
       notes: dto.notes ?? '',
       overpaymentAmount: overflowBase, // Overflow in base currency
+      gateFeePercentage,
+      gateFeeAmount,
+      baseGateFeeAmount,
+      baseNetAmount,
     });
     await payment.save();
 
@@ -156,6 +167,103 @@ export class PaymentsService {
       this.paymentModel.countDocuments(filter),
     ]);
     return { data, total, page, limit };
+  }
+
+  async findOne(id: string): Promise<PaymentDocument> {
+    const payment = await this.paymentModel.findById(id);
+    if (!payment) throw new NotFoundException('Payment not found');
+    return payment;
+  }
+
+  /**
+   * Update metadata fields only — amount/installment changes are NOT supported
+   * because they require unwinding the recursive overflow allocation. To change
+   * a payment's amount, delete it and create a new one.
+   */
+  async update(id: string, dto: UpdatePaymentDto): Promise<PaymentDocument> {
+    const payment = await this.findOne(id);
+
+    if (dto.paymentDate !== undefined) payment.paymentDate = new Date(dto.paymentDate);
+    if (dto.method !== undefined) payment.method = dto.method;
+    if (dto.reference !== undefined) payment.reference = dto.reference;
+    if (dto.notes !== undefined) payment.notes = dto.notes;
+
+    if (dto.gateFeePercentage !== undefined) {
+      const pct = dto.gateFeePercentage;
+      payment.gateFeePercentage = pct;
+      payment.gateFeeAmount = parseFloat(((payment.amount * pct) / 100).toFixed(2));
+      payment.baseGateFeeAmount = parseFloat(((payment.baseAmount * pct) / 100).toFixed(2));
+      payment.baseNetAmount = parseFloat((payment.baseAmount - payment.baseGateFeeAmount).toFixed(2));
+    }
+
+    await payment.save();
+    this.gateway.emitFinanceUpdate('payment:updated', { paymentId: payment._id.toString() });
+    return payment;
+  }
+
+  /**
+   * Delete a payment and recompute the affected installment + subscription state
+   * from the remaining payments. Recomputation guarantees the final state stays
+   * consistent regardless of how the payment originally allocated overflow.
+   */
+  async delete(id: string): Promise<void> {
+    const payment = await this.findOne(id);
+    const subscriptionId = payment.subscriptionId;
+
+    await this.paymentModel.findByIdAndDelete(id);
+
+    // Recompute every installment of this subscription from the surviving payments.
+    const installments = await this.installmentModel
+      .find({ subscriptionId })
+      .sort({ dueDate: 1 });
+
+    // Reset every installment, then re-apply remaining payments in payment-date order.
+    for (const inst of installments) {
+      inst.paidAmount = 0;
+      inst.status = InstallmentStatus.PENDING;
+      inst.paidAt = undefined as any;
+    }
+
+    const remainingPayments = await this.paymentModel
+      .find({ subscriptionId })
+      .sort({ paymentDate: 1, createdAt: 1 });
+
+    for (const pay of remainingPayments) {
+      const inst = installments.find((i) => i._id.equals(pay.installmentId));
+      if (!inst) continue;
+      const due = inst.baseAmount - inst.paidAmount;
+      const applied = Math.min(pay.baseAmount, due);
+      inst.paidAmount = parseFloat((inst.paidAmount + applied).toFixed(2));
+      if (inst.paidAmount >= inst.baseAmount) {
+        inst.status = InstallmentStatus.PAID;
+        inst.paidAt = pay.paymentDate;
+      } else if (inst.paidAmount > 0) {
+        inst.status = InstallmentStatus.PARTIALLY_PAID;
+      }
+    }
+
+    await Promise.all(installments.map((i) => i.save()));
+
+    // Recompute subscription paidAmount + status
+    const totalPaid = installments.reduce((s, i) => s + i.paidAmount, 0);
+    const subscription = await this.subscriptionModel.findById(subscriptionId);
+    if (subscription) {
+      subscription.paidAmount = parseFloat(totalPaid.toFixed(2));
+      // If no payments left and subscription was active because of payments, revert to pending.
+      if (totalPaid === 0 && subscription.status === SubscriptionStatus.ACTIVE) {
+        subscription.status = SubscriptionStatus.PENDING;
+      }
+      // If the subscription was completed and we removed payments below the total, reactivate it.
+      if (totalPaid < subscription.baseTotalPrice && subscription.status === SubscriptionStatus.COMPLETED) {
+        subscription.status = SubscriptionStatus.ACTIVE;
+      }
+      await subscription.save();
+    }
+
+    this.gateway.emitFinanceUpdate('payment:deleted', {
+      paymentId: id,
+      subscriptionId: subscriptionId.toString(),
+    });
   }
 
   async getTotalCashIn(startDate?: Date, endDate?: Date): Promise<number> {

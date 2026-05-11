@@ -12,18 +12,8 @@ import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
 import { roundCents, calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
 import { GoogleDriveStorage } from '../../backup/storage/google-drive.storage';
+import { CommissionService } from '../../payroll/commission.service';
 
-const ALLOWED_DOCUMENT_MIME = new Set([
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'text/plain',
-  'text/csv',
-]);
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_DOCUMENTS_PER_SUBSCRIPTION = 10;
 
@@ -37,6 +27,7 @@ export class SubscriptionsService {
     @InjectModel(Revenue.name) private revenueModel: Model<RevenueDocument>,
     private readonly gateway: FinanceGateway,
     private readonly googleDrive: GoogleDriveStorage,
+    private readonly commissionService: CommissionService,
   ) {}
 
   /**
@@ -108,10 +99,26 @@ export class SubscriptionsService {
     const startDate = new Date(dto.startDate);
     const endDate = this.calcEndDate(startDate, dto.planType as PlanType);
     const months = this.planMonths(dto.planType as PlanType);
-    
+
     // Calculate base total price (converted to base currency)
     const baseTotalPrice = calculateBaseAmount(dto.totalPrice!, dto.exchangeRate);
-    
+
+    // Gate fees: customer pays full amount; fee is deducted from incoming amount
+    const gateFeePercentage = dto.gateFeePercentage ?? 0;
+    const gateFeeAmount = parseFloat(((dto.totalPrice! * gateFeePercentage) / 100).toFixed(2));
+    const baseGateFeeAmount = parseFloat(((baseTotalPrice * gateFeePercentage) / 100).toFixed(2));
+    const baseNetTotalPrice = parseFloat((baseTotalPrice - baseGateFeeAmount).toFixed(2));
+
+    // Validate commission percentages don't exceed 100% in aggregate
+    if (dto.commissions?.length) {
+      const totalPct = dto.commissions.reduce((s, c) => s + c.percentage, 0);
+      if (totalPct > 100) {
+        throw new BadRequestException(
+          `Total commission percentage (${totalPct}%) cannot exceed 100%`,
+        );
+      }
+    }
+
     // Calculate monthly revenue in both currencies
     const monthlyRevenue = parseFloat((dto.totalPrice! / months).toFixed(2));
     const monthlyRevenueBase = parseFloat((baseTotalPrice / months).toFixed(2));
@@ -125,6 +132,10 @@ export class SubscriptionsService {
       currency: dto.currency,
       exchangeRate: dto.exchangeRate,
       baseTotalPrice, // Converted to base currency
+      gateFeePercentage,
+      gateFeeAmount,
+      baseGateFeeAmount,
+      baseNetTotalPrice,
       startDate,
       endDate,
       installmentPlan: dto.installmentPlan,
@@ -133,6 +144,21 @@ export class SubscriptionsService {
       status: SubscriptionStatus.PENDING,
     });
     await sub.save();
+
+    // Create pending commission records based on the net amount (after gate fee)
+    if (dto.commissions?.length) {
+      await this.commissionService.createForSubscription({
+        subscriptionId: sub._id,
+        clientId: sub.clientId,
+        clientName: sub.clientName,
+        baseSourceNetAmount: baseNetTotalPrice,
+        currency: dto.currency,
+        assignments: dto.commissions.map((c) => ({
+          employeeId: c.employeeId,
+          percentage: c.percentage,
+        })),
+      });
+    }
 
     // Generate Revenue schedule
     const revenueEntries: Record<string, any>[] = [];
@@ -367,12 +393,8 @@ export class SubscriptionsService {
       );
     }
 
+    // Accept any file type — only enforce size limit
     for (const f of files) {
-      if (!ALLOWED_DOCUMENT_MIME.has(f.mimetype)) {
-        throw new BadRequestException(
-          `File type not allowed: ${f.originalname} (${f.mimetype})`,
-        );
-      }
       if (f.size > MAX_DOCUMENT_BYTES) {
         throw new PayloadTooLargeException(
           `File ${f.originalname} exceeds the 20 MB limit`,

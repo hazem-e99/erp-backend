@@ -8,6 +8,19 @@ import { InstallmentPlan, PlanType } from '../schemas/subscription.schema';
 import { SupportedCurrency } from '../constants/currency.constants';
 import { IsFinancialAmount } from '../validators/finance.validators';
 
+export class CommissionAssignmentDto {
+  @IsMongoId()
+  employeeId: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, {
+    message: 'Commission percentage must be a number with at most 2 decimal places',
+  })
+  @Min(0.01, { message: 'Commission percentage must be greater than 0' })
+  @Max(100, { message: 'Commission percentage cannot exceed 100' })
+  percentage: number;
+}
+
 export class InstallmentItemDto {
   @Type(() => Number)
   @IsFinancialAmount(1_000_000, {
@@ -73,4 +86,20 @@ export class CreateSubscriptionDto {
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, {
+    message: 'Gate fee percentage must be a number with at most 2 decimal places',
+  })
+  @Min(0, { message: 'Gate fee percentage cannot be negative' })
+  @Max(100, { message: 'Gate fee percentage cannot exceed 100' })
+  gateFeePercentage?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => CommissionAssignmentDto)
+  commissions?: CommissionAssignmentDto[];
 }

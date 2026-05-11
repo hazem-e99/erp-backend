@@ -52,4 +52,12 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, {
+    message: 'Gate fee percentage must be a number with at most 2 decimal places',
+  })
+  @Min(0, { message: 'Gate fee percentage cannot be negative' })
+  @Max(100, { message: 'Gate fee percentage cannot exceed 100' })
+  gateFeePercentage?: number;
 }

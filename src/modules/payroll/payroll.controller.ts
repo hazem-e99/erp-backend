@@ -115,13 +115,8 @@ export class PayrollController {
           cb(null, uniqueName);
         },
       }),
-      fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
-          return cb(new Error('Only image files allowed'), false);
-        }
-        cb(null, true);
-      },
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      // Accept any file type — restriction caused legitimate uploads to be rejected
+      limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
     }),
   )
   @ApiOperation({ summary: 'Upload transfer screenshot' })
