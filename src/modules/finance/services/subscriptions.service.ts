@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Logger, PreconditionFailedException, PayloadTooLargeException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger, PreconditionFailedException, PayloadTooLargeException, HttpException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Readable } from 'stream';
@@ -437,6 +437,9 @@ export class SubscriptionsService {
         ),
       );
       const reason = (failures[0] as PromiseRejectedResult).reason;
+      if (reason instanceof HttpException) {
+        throw reason;
+      }
       throw new BadRequestException(
         `Failed to upload one or more documents: ${reason?.message ?? 'unknown error'}`,
       );

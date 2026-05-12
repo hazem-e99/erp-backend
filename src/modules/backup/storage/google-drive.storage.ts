@@ -1,4 +1,4 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException, OnModuleInit, PreconditionFailedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -12,8 +12,25 @@ import { IBackupStorage, StoredBackupInfo, UploadResult } from './storage.interf
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 @Injectable()
-export class GoogleDriveStorage implements IBackupStorage {
+export class GoogleDriveStorage implements IBackupStorage, OnModuleInit {
   private readonly logger = new Logger(GoogleDriveStorage.name);
+
+  onModuleInit() {
+    const required = [
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_REDIRECT_URI',
+      'GOOGLE_DRIVE_FOLDER_NAME',
+      'FRONTEND_URL',
+    ];
+    const missing = required.filter((k) => !this.config.get<string>(k));
+    if (missing.length) {
+      this.logger.warn(
+        `Google Drive / OAuth env vars not set: ${missing.join(', ')}. ` +
+          'Google Drive backup and OAuth will not work until these are configured.',
+      );
+    }
+  }
 
   constructor(
     private readonly config: ConfigService,
@@ -28,7 +45,7 @@ export class GoogleDriveStorage implements IBackupStorage {
 
   async isConfigured(): Promise<boolean> {
     const cfg = await this.backupConfigModel.findOne().exec();
-    return !!(cfg && cfg.googleRefreshTokenEnc && cfg.driveFolderId);
+    return !!(cfg && cfg.googleRefreshTokenEnc);
   }
 
   buildOAuthClient(): OAuth2Client {
@@ -106,6 +123,7 @@ export class GoogleDriveStorage implements IBackupStorage {
       },
       { upsert: true },
     );
+    this.cachedSubscriptionDocsFolderId = null;
   }
 
   async getAccountInfo(): Promise<{
@@ -144,6 +162,26 @@ export class GoogleDriveStorage implements IBackupStorage {
     return google.drive({ version: 'v3', auth });
   }
 
+  private isInvalidGrantError(err: any): boolean {
+    return (
+      err?.response?.data?.error === 'invalid_grant' ||
+      err?.errors?.some?.((e: any) => e?.reason === 'invalidGrant') ||
+      String(err?.message ?? '').toLowerCase().includes('invalid_grant')
+    );
+  }
+
+  private async throwIfInvalidGrant(err: any): Promise<void> {
+    if (this.isInvalidGrantError(err)) {
+      this.logger.warn('Stored Google Drive refresh token is invalid; disconnecting Drive.');
+      await this.disconnect();
+      throw new PreconditionFailedException({
+        message:
+          'Google Drive connection expired or was revoked. Reconnect Google Drive in Settings > Backup, then upload the document again.',
+        code: 'GOOGLE_DRIVE_RECONNECT_REQUIRED',
+      });
+    }
+  }
+
   private async ensureFolderId(auth: OAuth2Client, folderName?: string): Promise<string> {
     const name = folderName ?? this.config.get<string>('GOOGLE_DRIVE_FOLDER_NAME', 'ERP-Backups');
     const drive = this.driveClient(auth);
@@ -165,6 +203,38 @@ export class GoogleDriveStorage implements IBackupStorage {
       throw new InternalServerErrorException('Failed to create Google Drive folder');
     }
     return created.data.id;
+  }
+
+  private async ensureBackupFolderId(auth: OAuth2Client): Promise<string> {
+    const cfg = await this.backupConfigModel.findOne().exec();
+    const drive = this.driveClient(auth);
+
+    // Verify existing saved folder ID still exists in Drive
+    if (cfg?.driveFolderId) {
+      try {
+        const check = await drive.files.get({
+          fileId: cfg.driveFolderId,
+          fields: 'id,trashed',
+        });
+        if (check.data.id && !check.data.trashed) {
+          return cfg.driveFolderId;
+        }
+      } catch (err: any) {
+        if (err?.code !== 404) {
+          this.logger.warn(`Backup folder verify failed: ${err.message}`);
+        }
+      }
+    }
+
+    // Saved ID was invalid/missing — search or create
+    const folderId = await this.ensureFolderId(auth);
+    await this.backupConfigModel.findOneAndUpdate(
+      {},
+      { driveFolderId: folderId },
+      { upsert: true },
+    );
+    this.logger.log(`Backup folder resolved: ${folderId}`);
+    return folderId;
   }
 
   private cachedSubscriptionDocsFolderId: string | null = null;
@@ -211,7 +281,10 @@ export class GoogleDriveStorage implements IBackupStorage {
       this.cachedSubscriptionDocsFolderId = folderId;
       this.logger.log(`Subscription docs folder resolved: ${folderId}`);
       return folderId;
-    })().finally(() => {
+    })().catch(async (err) => {
+      await this.throwIfInvalidGrant(err);
+      throw err;
+    }).finally(() => {
       this.subscriptionDocsFolderPromise = null;
     });
 
@@ -252,6 +325,8 @@ export class GoogleDriveStorage implements IBackupStorage {
       this.logger.log(`Uploaded subscription doc ${filename} (${reportedSize} bytes) → ${remoteKey}`);
       return { remoteKey, sizeBytes: reportedSize };
     } catch (err: any) {
+      if (err instanceof PreconditionFailedException) throw err;
+      await this.throwIfInvalidGrant(err);
       this.logger.error(`Subscription doc upload failed: ${err.message}`);
       throw new InternalServerErrorException(`Drive upload failed: ${err.message}`);
     }
@@ -283,25 +358,16 @@ export class GoogleDriveStorage implements IBackupStorage {
     filename: string,
     mimeType: string,
   ): Promise<UploadResult> {
-    const cfg = await this.backupConfigModel.findOne().exec();
-    if (!cfg || !cfg.driveFolderId) {
-      throw new InternalServerErrorException('Drive folder not set — reconnect Google Drive');
-    }
     const auth = await this.getAuthedClient();
+    const folderId = await this.ensureBackupFolderId(auth);
     const drive = this.driveClient(auth);
 
     let uploadedBytes = 0;
-    const progressStream = new (require('stream').PassThrough)();
-    
-    // Track upload progress
+    const progressStream = new PassThrough();
     progressStream.on('data', (chunk: Buffer) => {
       uploadedBytes += chunk.length;
     });
-
-    // Pipe input stream to progress tracker
     stream.pipe(progressStream);
-
-    // Handle stream errors gracefully
     stream.on('error', (err) => {
       this.logger.error(`Upload stream error: ${err.message}`);
       progressStream.destroy(err);
@@ -309,7 +375,7 @@ export class GoogleDriveStorage implements IBackupStorage {
 
     try {
       const res = await drive.files.create({
-        requestBody: { name: filename, parents: [cfg.driveFolderId] },
+        requestBody: { name: filename, parents: [folderId] },
         media: { mimeType, body: progressStream },
         fields: 'id,size',
       });
@@ -322,6 +388,8 @@ export class GoogleDriveStorage implements IBackupStorage {
       this.logger.log(`Uploaded ${filename} (${reportedSize} bytes) to Drive file ${remoteKey}`);
       return { remoteKey, sizeBytes: reportedSize };
     } catch (err: any) {
+      if (err instanceof PreconditionFailedException) throw err;
+      await this.throwIfInvalidGrant(err);
       this.logger.error(`Google Drive upload failed: ${err.message}`);
       throw new InternalServerErrorException(`Drive upload failed: ${err.message}`);
     }

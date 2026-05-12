@@ -80,19 +80,19 @@ export class GoogleOAuthController {
     @Res() res: express.Response,
   ) {
     const frontendBase = this.resolveFrontendBase(req);
-    const closeWindow = (status: 'success' | 'error', message?: string) => {
+    const redirect = (status: 'success' | 'error', reason?: string) => {
       const url = new URL('/dashboard/settings/backup', frontendBase);
       url.searchParams.set('google', status);
-      if (message) url.searchParams.set('message', message);
+      if (reason) url.searchParams.set('reason', reason);
       res.redirect(url.toString());
     };
 
     try {
       if (error) {
-        return closeWindow('error', `Google returned: ${error}`);
+        return redirect('error', 'google_denied');
       }
       if (!code || !state) {
-        return closeWindow('error', 'Missing code or state');
+        return redirect('error', 'missing_params');
       }
 
       // Verify state was minted by us recently
@@ -100,16 +100,16 @@ export class GoogleOAuthController {
       try {
         statePayload = this.jwt.verify(state);
       } catch {
-        return closeWindow('error', 'Invalid or expired state');
+        return redirect('error', 'invalid_state');
       }
       if (statePayload.purpose !== 'drive-oauth' || !statePayload.sub) {
-        return closeWindow('error', 'State mismatch');
+        return redirect('error', 'state_mismatch');
       }
 
-      // Re-verify user is still a super admin
+      // Re-verify user is still authorized
       const user = await this.userModel.findById(statePayload.sub).lean();
       if (!user || !user.isActive) {
-        return closeWindow('error', 'User not authorized');
+        return redirect('error', 'unauthorized');
       }
       let permissions: string[] = [];
       if (user.role) {
@@ -117,13 +117,13 @@ export class GoogleOAuthController {
         if (role) permissions = role.permissions ?? [];
       }
       if (!permissions.includes('*') && !permissions.includes('backup:export')) {
-        return closeWindow('error', 'Forbidden');
+        return redirect('error', 'forbidden');
       }
 
-      const { email } = await this.drive.exchangeCodeAndPersist(code);
-      return closeWindow('success', email ? `Connected as ${email}` : 'Connected');
+      await this.drive.exchangeCodeAndPersist(code);
+      return redirect('success');
     } catch (err: any) {
-      return closeWindow('error', err?.message ?? 'OAuth failed');
+      return redirect('error', 'oauth_failed');
     }
   }
 
