@@ -32,8 +32,8 @@ export class EmailService {
       '7days': '7 أيام',
       '3days': '3 أيام',
       '24hours': '24 ساعة',
-      'sameday': 'اليوم',
-      'monthly': 'تذكير شهري',
+      sameday: 'اليوم',
+      monthly: 'تذكير شهري',
     };
 
     const htmlContent = `
@@ -80,12 +80,16 @@ export class EmailService {
             <span class="value">${new Date(reminder.reminderDate).toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
           
-          ${reminder.amount ? `
+          ${
+            reminder.amount
+              ? `
           <div class="detail-row">
             <span class="label">💰 المبلغ:</span>
             <span class="amount">${reminder.amount.toLocaleString()} جنيه</span>
           </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
       

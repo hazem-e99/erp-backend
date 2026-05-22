@@ -1,10 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Announcement, AnnouncementDocument } from './schemas/announcement.schema';
-import { Notification, NotificationDocument } from './schemas/notification.schema';
+import {
+  Announcement,
+  AnnouncementDocument,
+} from './schemas/announcement.schema';
+import {
+  Notification,
+  NotificationDocument,
+} from './schemas/notification.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
 import { Project, ProjectDocument } from '../projects/schemas/project.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
 import { CreateAnnouncementDto } from './dto/announcement.dto';
@@ -12,8 +21,10 @@ import { CreateAnnouncementDto } from './dto/announcement.dto';
 @Injectable()
 export class AnnouncementsService {
   constructor(
-    @InjectModel(Announcement.name) private announcementModel: Model<AnnouncementDocument>,
-    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Announcement.name)
+    private announcementModel: Model<AnnouncementDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
@@ -25,7 +36,10 @@ export class AnnouncementsService {
    */
   async create(dto: CreateAnnouncementDto, senderId: string) {
     // 1. Resolve target user IDs
-    const targetUserIds = await this.resolveTargetUsers(dto.targetType, dto.targetIds || []);
+    const targetUserIds = await this.resolveTargetUsers(
+      dto.targetType,
+      dto.targetIds || [],
+    );
 
     // 2. Create announcement
     const announcement = await this.announcementModel.create({
@@ -40,7 +54,7 @@ export class AnnouncementsService {
 
     // 3. Bulk insert notifications (optimized for many users)
     if (targetUserIds.length > 0) {
-      const notifications = targetUserIds.map(userId => ({
+      const notifications = targetUserIds.map((userId) => ({
         userId: new Types.ObjectId(userId),
         title: dto.title,
         message: dto.message,
@@ -60,13 +74,18 @@ export class AnnouncementsService {
   /**
    * Resolve which users should receive the announcement
    */
-  private async resolveTargetUsers(targetType: string, targetIds: string[]): Promise<string[]> {
+  private async resolveTargetUsers(
+    targetType: string,
+    targetIds: string[],
+  ): Promise<string[]> {
     let userIds: string[] = [];
 
     switch (targetType) {
       case 'all': {
-        const users = await this.userModel.find({ isActive: true }).select('_id');
-        userIds = users.map(u => u._id.toString());
+        const users = await this.userModel
+          .find({ isActive: true })
+          .select('_id');
+        userIds = users.map((u) => u._id.toString());
         break;
       }
       case 'users': {
@@ -74,28 +93,34 @@ export class AnnouncementsService {
         break;
       }
       case 'roles': {
-        const users = await this.userModel.find({
-          role: { $in: targetIds.map(id => new Types.ObjectId(id)) },
-          isActive: true,
-        }).select('_id');
-        userIds = users.map(u => u._id.toString());
+        const users = await this.userModel
+          .find({
+            role: { $in: targetIds.map((id) => new Types.ObjectId(id)) },
+            isActive: true,
+          })
+          .select('_id');
+        userIds = users.map((u) => u._id.toString());
         break;
       }
       case 'departments': {
-        const employees = await this.employeeModel.find({
-          $or: [
-            { department: { $in: targetIds } },
-            { departments: { $in: targetIds } },
-          ],
-          status: 'active',
-        }).select('userId');
-        userIds = employees.map(e => e.userId.toString());
+        const employees = await this.employeeModel
+          .find({
+            $or: [
+              { department: { $in: targetIds } },
+              { departments: { $in: targetIds } },
+            ],
+            status: 'active',
+          })
+          .select('userId');
+        userIds = employees.map((e) => e.userId.toString());
         break;
       }
       case 'projects': {
-        const projects = await this.projectModel.find({
-          _id: { $in: targetIds.map(id => new Types.ObjectId(id)) },
-        }).select('teamMembers');
+        const projects = await this.projectModel
+          .find({
+            _id: { $in: targetIds.map((id) => new Types.ObjectId(id)) },
+          })
+          .select('teamMembers');
         const memberIds = new Set<string>();
         for (const p of projects) {
           for (const m of (p as any).teamMembers || []) {
@@ -105,13 +130,27 @@ export class AnnouncementsService {
         }
         // If teamMembers reference employees, resolve to userIds
         if (memberIds.size > 0) {
-          const emps = await this.employeeModel.find({
-            $or: [
-              { _id: { $in: Array.from(memberIds).map(id => new Types.ObjectId(id)) } },
-              { userId: { $in: Array.from(memberIds).map(id => new Types.ObjectId(id)) } },
-            ],
-          }).select('userId');
-          userIds = emps.map(e => e.userId.toString());
+          const emps = await this.employeeModel
+            .find({
+              $or: [
+                {
+                  _id: {
+                    $in: Array.from(memberIds).map(
+                      (id) => new Types.ObjectId(id),
+                    ),
+                  },
+                },
+                {
+                  userId: {
+                    $in: Array.from(memberIds).map(
+                      (id) => new Types.ObjectId(id),
+                    ),
+                  },
+                },
+              ],
+            })
+            .select('userId');
+          userIds = emps.map((e) => e.userId.toString());
           // Also add direct user IDs
           for (const id of memberIds) userIds.push(id);
         }
@@ -150,11 +189,15 @@ export class AnnouncementsService {
   }
 
   async findById(id: string) {
-    const ann = await this.announcementModel.findById(id)
+    const ann = await this.announcementModel
+      .findById(id)
       .populate({ path: 'senderId', select: 'name email' });
     if (!ann) throw new NotFoundException('Announcement not found');
 
-    const readCount = await this.notificationModel.countDocuments({ announcementId: ann._id, isRead: true });
+    const readCount = await this.notificationModel.countDocuments({
+      announcementId: ann._id,
+      isRead: true,
+    });
     ann.readCount = readCount;
 
     return ann;
@@ -169,7 +212,10 @@ export class AnnouncementsService {
     if (filter === 'read') f.isRead = true;
 
     const total = await this.notificationModel.countDocuments(f);
-    const unreadCount = await this.notificationModel.countDocuments({ userId: new Types.ObjectId(userId), isRead: false });
+    const unreadCount = await this.notificationModel.countDocuments({
+      userId: new Types.ObjectId(userId),
+      isRead: false,
+    });
     const data = await this.notificationModel
       .find(f)
       .sort({ createdAt: -1 })

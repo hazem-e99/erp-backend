@@ -14,7 +14,10 @@ export class Project {
   @Prop({ type: Types.ObjectId, ref: 'Client', required: true })
   clientId: Types.ObjectId;
 
-  @Prop({ default: 'planning', enum: ['planning', 'in-progress', 'on-hold', 'completed', 'cancelled'] })
+  @Prop({
+    default: 'planning',
+    enum: ['planning', 'in-progress', 'on-hold', 'completed', 'cancelled'],
+  })
   status: string;
 
   @Prop({ default: 'medium', enum: ['low', 'medium', 'high', 'critical'] })

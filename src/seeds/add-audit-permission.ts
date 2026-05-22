@@ -13,7 +13,7 @@ interface Role {
 
 async function addAuditPermission() {
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/erp';
-  
+
   try {
     // Connect to MongoDB
     await mongoose.connect(uri);
@@ -30,7 +30,7 @@ async function addAuditPermission() {
     // Add audit:read permission to admin role
     const result = await rolesCollection.updateOne(
       { name: 'admin' },
-      { $addToSet: { permissions: 'audit:read' } }
+      { $addToSet: { permissions: 'audit:read' } },
     );
 
     if (result.matchedCount === 0) {
@@ -42,15 +42,18 @@ async function addAuditPermission() {
     }
 
     // Verify the permission was added
-    const adminRole = await rolesCollection.findOne({ name: 'admin' }) as Role | null;
+    const adminRole = (await rolesCollection.findOne({
+      name: 'admin',
+    })) as Role | null;
     if (adminRole) {
       console.log('\n📋 Admin role permissions:');
       console.log(adminRole.permissions);
-      
-      const hasAuditRead = adminRole.permissions.includes('audit:read');
-      console.log(`\n${hasAuditRead ? '✅' : '❌'} audit:read permission: ${hasAuditRead ? 'PRESENT' : 'MISSING'}`);
-    }
 
+      const hasAuditRead = adminRole.permissions.includes('audit:read');
+      console.log(
+        `\n${hasAuditRead ? '✅' : '❌'} audit:read permission: ${hasAuditRead ? 'PRESENT' : 'MISSING'}`,
+      );
+    }
   } catch (error: any) {
     console.error('❌ Error:', error.message);
     process.exit(1);

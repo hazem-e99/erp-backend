@@ -1,8 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Leave, LeaveDocument } from './schemas/leave.schema';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
 import { CreateLeaveDto, ApproveLeaveDto } from './dto/leave.dto';
 
 @Injectable()
@@ -75,7 +82,10 @@ export class LeavesService {
     const total = await this.leaveModel.countDocuments(filter);
     const leaves = await this.leaveModel
       .find(filter)
-      .populate({ path: 'employeeId', populate: { path: 'userId', select: 'name email avatar' } })
+      .populate({
+        path: 'employeeId',
+        populate: { path: 'userId', select: 'name email avatar' },
+      })
       .populate('approvedBy', 'name email')
       .skip((page - 1) * limit)
       .limit(limit)
@@ -104,7 +114,10 @@ export class LeavesService {
   async findById(id: string) {
     const leave = await this.leaveModel
       .findById(id)
-      .populate({ path: 'employeeId', populate: { path: 'userId', select: 'name email' } })
+      .populate({
+        path: 'employeeId',
+        populate: { path: 'userId', select: 'name email' },
+      })
       .populate('approvedBy', 'name email');
     if (!leave) throw new NotFoundException('Leave not found');
     return leave;

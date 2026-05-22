@@ -19,7 +19,11 @@ export interface UploadResult {
 export interface IBackupStorage {
   driverName(): string;
   isConfigured(): Promise<boolean>;
-  upload(stream: Readable, filename: string, mimeType: string): Promise<UploadResult>;
+  upload(
+    stream: Readable,
+    filename: string,
+    mimeType: string,
+  ): Promise<UploadResult>;
   download(remoteKey: string): Promise<Readable>;
   delete(remoteKey: string): Promise<void>;
   list(): Promise<StoredBackupInfo[]>;

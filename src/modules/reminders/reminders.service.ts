@@ -2,15 +2,22 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Reminder } from './schemas/reminder.schema';
-import { PayrollReminder, PayrollReminderDocument } from './schemas/payroll-reminder.schema';
-import { UpsertAllPayrollReminderDto, UpsertInternPayrollReminderDto } from './dto/payroll-reminder.dto';
+import {
+  PayrollReminder,
+  PayrollReminderDocument,
+} from './schemas/payroll-reminder.schema';
+import {
+  UpsertAllPayrollReminderDto,
+  UpsertInternPayrollReminderDto,
+} from './dto/payroll-reminder.dto';
 import { CreateReminderDto, UpdateReminderDto } from './dto/reminder.dto';
 
 @Injectable()
 export class RemindersService {
   constructor(
     @InjectModel(Reminder.name) private reminderModel: Model<Reminder>,
-    @InjectModel(PayrollReminder.name) private payrollReminderModel: Model<PayrollReminderDocument>,
+    @InjectModel(PayrollReminder.name)
+    private payrollReminderModel: Model<PayrollReminderDocument>,
   ) {}
 
   async getPayrollReminders() {
@@ -33,13 +40,22 @@ export class RemindersService {
   async upsertInternPayrollReminder(dto: UpsertInternPayrollReminderDto) {
     return this.payrollReminderModel.findOneAndUpdate(
       { type: 'intern', employeeId: dto.employeeId },
-      { $set: { dayOfMonth: dto.dayOfMonth, type: 'intern', employeeId: dto.employeeId } },
+      {
+        $set: {
+          dayOfMonth: dto.dayOfMonth,
+          type: 'intern',
+          employeeId: dto.employeeId,
+        },
+      },
       { new: true, upsert: true },
     );
   }
 
   async deleteInternPayrollReminder(employeeId: string) {
-    const result = await this.payrollReminderModel.deleteOne({ type: 'intern', employeeId });
+    const result = await this.payrollReminderModel.deleteOne({
+      type: 'intern',
+      employeeId,
+    });
     if (result.deletedCount === 0) {
       throw new NotFoundException('Payroll reminder not found');
     }
@@ -56,10 +72,7 @@ export class RemindersService {
   }
 
   async findAll(userId: string) {
-    return this.reminderModel
-      .find({ userId })
-      .sort({ reminderDate: 1 })
-      .exec();
+    return this.reminderModel.find({ userId }).sort({ reminderDate: 1 }).exec();
   }
 
   async findOne(id: string, userId: string) {
@@ -70,7 +83,11 @@ export class RemindersService {
     return reminder;
   }
 
-  async update(id: string, updateReminderDto: UpdateReminderDto, userId: string) {
+  async update(
+    id: string,
+    updateReminderDto: UpdateReminderDto,
+    userId: string,
+  ) {
     const reminder = await this.reminderModel.findOneAndUpdate(
       { _id: id, userId },
       updateReminderDto,
@@ -91,7 +108,9 @@ export class RemindersService {
   }
 
   // Get pending reminders that need to be sent (existing period-based logic)
-  async getPendingReminders(debugMode = false): Promise<Array<{ reminder: any; period: string }>> {
+  async getPendingReminders(
+    debugMode = false,
+  ): Promise<Array<{ reminder: any; period: string }>> {
     const now = new Date();
     const reminders = await this.reminderModel
       .find({ status: 'pending' })
@@ -103,7 +122,7 @@ export class RemindersService {
     }
 
     const pendingToSend: Array<{ reminder: any; period: string }> = [];
-    
+
     for (const reminder of reminders) {
       const reminderDate = new Date(reminder.reminderDate);
       const diffMs = reminderDate.getTime() - now.getTime();
@@ -111,11 +130,13 @@ export class RemindersService {
       const diffHours = diffMs / (1000 * 60 * 60);
 
       if (debugMode) {
-        console.log(`   - ${reminder.title}: ${diffDays.toFixed(1)} days (${diffHours.toFixed(1)}h)`);
+        console.log(
+          `   - ${reminder.title}: ${diffDays.toFixed(1)} days (${diffHours.toFixed(1)}h)`,
+        );
       }
 
       const periods = reminder.reminderPeriods || [];
-      
+
       // Check if we should send reminder
       for (const period of periods) {
         let shouldSend = false;
@@ -137,7 +158,7 @@ export class RemindersService {
 
         if (shouldSend) {
           // Check if we already sent this period
-          const alreadySent = reminder.sentAt?.some(date => {
+          const alreadySent = reminder.sentAt?.some((date) => {
             const sentDate = new Date(date);
             const timeSinceSent = now.getTime() - sentDate.getTime();
             // Don't send again within 12 hours
@@ -155,7 +176,9 @@ export class RemindersService {
   }
 
   // Get monthly recurring reminders that should fire today
-  async getMonthlyRecurringReminders(debugMode = false): Promise<Array<{ reminder: any; period: string }>> {
+  async getMonthlyRecurringReminders(
+    debugMode = false,
+  ): Promise<Array<{ reminder: any; period: string }>> {
     const now = new Date();
     const todayDay = now.getDate();
     const todayStr = now.toISOString().split('T')[0]; // e.g. '2026-04-26'
@@ -170,7 +193,9 @@ export class RemindersService {
       .exec();
 
     if (debugMode) {
-      console.log(`   🔁 ${recurringReminders.length} monthly recurring reminder(s) for day ${todayDay}`);
+      console.log(
+        `   🔁 ${recurringReminders.length} monthly recurring reminder(s) for day ${todayDay}`,
+      );
     }
 
     const pendingToSend: Array<{ reminder: any; period: string }> = [];
@@ -201,8 +226,12 @@ export class RemindersService {
     if (!reminder) return;
 
     // Calculate next month's date
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, reminder.monthlyDay);
-    
+    const nextMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      reminder.monthlyDay,
+    );
+
     // Handle day overflow (e.g. day 31 in a month with 30 days)
     if (nextMonth.getDate() !== reminder.monthlyDay) {
       // Set to last day of the target month

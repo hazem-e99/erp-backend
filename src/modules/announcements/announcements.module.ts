@@ -2,8 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnnouncementsService } from './announcements.service';
 import { AnnouncementsController } from './announcements.controller';
-import { Announcement, AnnouncementSchema } from './schemas/announcement.schema';
-import { Notification, NotificationSchema } from './schemas/notification.schema';
+import {
+  Announcement,
+  AnnouncementSchema,
+} from './schemas/announcement.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from './schemas/notification.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { Project, ProjectSchema } from '../projects/schemas/project.schema';

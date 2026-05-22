@@ -1,5 +1,11 @@
 import {
-  IsString, IsEnum, IsDateString, IsOptional, IsNumber, Min, Max,
+  IsString,
+  IsEnum,
+  IsDateString,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { PaymentMethod } from '../schemas/payment.schema';
 import { SupportedCurrency } from '../constants/currency.constants';
@@ -19,18 +25,23 @@ export class CreatePaymentDto {
   clientName: string;
 
   @IsFinancialAmount(1_000_000, {
-    message: 'Payment amount must be greater than 0 and cannot exceed 1,000,000 (max 2 decimal places)',
+    message:
+      'Payment amount must be greater than 0 and cannot exceed 1,000,000 (max 2 decimal places)',
   })
   amount: number;
 
   @IsEnum(SupportedCurrency, {
-    message: 'Currency must be a valid supported currency (EGP, USD, SAR, EUR, GBP, AED)',
+    message:
+      'Currency must be a valid supported currency (EGP, USD, SAR, EUR, GBP, AED)',
   })
   currency: SupportedCurrency;
 
-  @IsNumber({ maxDecimalPlaces: 4 }, {
-    message: 'Exchange rate must be a number with at most 4 decimal places',
-  })
+  @IsNumber(
+    { maxDecimalPlaces: 4 },
+    {
+      message: 'Exchange rate must be a number with at most 4 decimal places',
+    },
+  )
   @Min(0.0001, {
     message: 'Exchange rate must be at least 0.0001',
   })
@@ -54,9 +65,13 @@ export class CreatePaymentDto {
   notes?: string;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 }, {
-    message: 'Gate fee percentage must be a number with at most 2 decimal places',
-  })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    {
+      message:
+        'Gate fee percentage must be a number with at most 2 decimal places',
+    },
+  )
   @Min(0, { message: 'Gate fee percentage cannot be negative' })
   @Max(100, { message: 'Gate fee percentage cannot exceed 100' })
   gateFeePercentage?: number;

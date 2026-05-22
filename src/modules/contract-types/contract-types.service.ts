@@ -1,19 +1,32 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ContractType, ContractTypeDocument } from './schemas/contract-type.schema';
-import { CreateContractTypeDto, UpdateContractTypeDto } from './dto/contract-type.dto';
+import {
+  ContractType,
+  ContractTypeDocument,
+} from './schemas/contract-type.schema';
+import {
+  CreateContractTypeDto,
+  UpdateContractTypeDto,
+} from './dto/contract-type.dto';
 
 @Injectable()
 export class ContractTypesService {
   constructor(
-    @InjectModel(ContractType.name) private contractTypeModel: Model<ContractTypeDocument>,
+    @InjectModel(ContractType.name)
+    private contractTypeModel: Model<ContractTypeDocument>,
   ) {}
 
   async create(dto: CreateContractTypeDto): Promise<ContractType> {
     const existing = await this.contractTypeModel.findOne({ name: dto.name });
     if (existing) {
-      throw new ConflictException('Contract type with this name already exists');
+      throw new ConflictException(
+        'Contract type with this name already exists',
+      );
     }
     const contractType = new this.contractTypeModel(dto);
     return contractType.save();
@@ -32,7 +45,11 @@ export class ContractTypesService {
   }
 
   async update(id: string, dto: UpdateContractTypeDto): Promise<ContractType> {
-    const contractType = await this.contractTypeModel.findByIdAndUpdate(id, dto, { new: true });
+    const contractType = await this.contractTypeModel.findByIdAndUpdate(
+      id,
+      dto,
+      { new: true },
+    );
     if (!contractType) {
       throw new NotFoundException('Contract type not found');
     }

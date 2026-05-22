@@ -1,4 +1,12 @@
-import { Controller, Get, Query, UseGuards, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  Delete,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ReportsService } from '../services/reports.service';
 import { ReportQueryDto } from '../dto/query.dto';

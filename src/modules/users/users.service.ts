@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -30,7 +34,10 @@ export class UsersService {
   }
 
   async findById(id: string) {
-    const user = await this.userModel.findById(id).populate('role').select('-password');
+    const user = await this.userModel
+      .findById(id)
+      .populate('role')
+      .select('-password');
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
@@ -39,7 +46,10 @@ export class UsersService {
     const exists = await this.userModel.findOne({ email: dto.email });
     if (exists) throw new ConflictException('Email already in use');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = await this.userModel.create({ ...dto, password: hashedPassword });
+    const user = await this.userModel.create({
+      ...dto,
+      password: hashedPassword,
+    });
     const { password, ...result } = user.toObject();
     return result;
   }

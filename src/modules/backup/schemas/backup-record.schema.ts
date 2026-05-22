@@ -42,7 +42,11 @@ export class BackupRecord {
   @Prop({ type: String, default: null })
   remoteKey!: string | null;
 
-  @Prop({ required: true, enum: Object.values(BackupStatus), default: BackupStatus.RUNNING })
+  @Prop({
+    required: true,
+    enum: Object.values(BackupStatus),
+    default: BackupStatus.RUNNING,
+  })
   status!: string;
 
   @Prop({ type: String, default: null })

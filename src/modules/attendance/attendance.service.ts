@@ -1,17 +1,29 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Attendance, AttendanceDocument } from './schemas/attendance.schema';
-import { AttendanceSettings, AttendanceSettingsDocument } from './schemas/attendance-settings.schema';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import {
+  AttendanceSettings,
+  AttendanceSettingsDocument,
+} from './schemas/attendance-settings.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
 import { CheckInDto, CheckOutDto } from './dto/attendance.dto';
 import { UpdateAttendanceSettingsDto } from './dto/attendance-settings.dto';
 
 @Injectable()
 export class AttendanceService {
   constructor(
-    @InjectModel(Attendance.name) private attendanceModel: Model<AttendanceDocument>,
-    @InjectModel(AttendanceSettings.name) private settingsModel: Model<AttendanceSettingsDocument>,
+    @InjectModel(Attendance.name)
+    private attendanceModel: Model<AttendanceDocument>,
+    @InjectModel(AttendanceSettings.name)
+    private settingsModel: Model<AttendanceSettingsDocument>,
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
   ) {}
 
@@ -26,7 +38,9 @@ export class AttendanceService {
     return settings;
   }
 
-  async updateSettings(dto: UpdateAttendanceSettingsDto): Promise<AttendanceSettingsDocument> {
+  async updateSettings(
+    dto: UpdateAttendanceSettingsDto,
+  ): Promise<AttendanceSettingsDocument> {
     let settings = await this.settingsModel.findOne();
     if (!settings) {
       settings = await this.settingsModel.create({ ...dto });
@@ -36,10 +50,10 @@ export class AttendanceService {
       // Auto-compute standardHours from start/end times if both provided and no explicit override
       if ((dto.workStartTime || dto.workEndTime) && !dto.standardHours) {
         const start = settings.workStartTime;
-        const end   = settings.workEndTime;
+        const end = settings.workEndTime;
         const [sh, sm] = start.split(':').map(Number);
         const [eh, em] = end.split(':').map(Number);
-        const totalMinutes = (eh * 60 + em) - (sh * 60 + sm);
+        const totalMinutes = eh * 60 + em - (sh * 60 + sm);
         if (totalMinutes > 0) {
           settings.standardHours = parseFloat((totalMinutes / 60).toFixed(2));
         }
@@ -54,7 +68,9 @@ export class AttendanceService {
 
   private getToday(): Date {
     const now = new Date();
-    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
   }
 
   /**
@@ -92,7 +108,9 @@ export class AttendanceService {
     if (settings.shiftType !== 'flexible') {
       const workStart = this.parseTimeOnDay(settings.workStartTime, today);
       if (now > workStart) {
-        const rawLate = Math.floor((now.getTime() - workStart.getTime()) / 60000);
+        const rawLate = Math.floor(
+          (now.getTime() - workStart.getTime()) / 60000,
+        );
         lateMinutes = rawLate > settings.gracePeriodMinutes ? rawLate : 0;
       }
     }
@@ -141,7 +159,9 @@ export class AttendanceService {
 
     let overtimeMinutes = 0;
     if (workingHours > settings.standardHours) {
-      overtimeMinutes = Math.floor((workingHours - settings.standardHours) * 60);
+      overtimeMinutes = Math.floor(
+        (workingHours - settings.standardHours) * 60,
+      );
     }
 
     attendance.checkOut = now;
@@ -194,7 +214,10 @@ export class AttendanceService {
     const total = await this.attendanceModel.countDocuments(filter);
     const records = await this.attendanceModel
       .find(filter)
-      .populate({ path: 'employeeId', populate: { path: 'userId', select: 'name email avatar' } })
+      .populate({
+        path: 'employeeId',
+        populate: { path: 'userId', select: 'name email avatar' },
+      })
       .skip((page - 1) * limit)
       .limit(limit)
       .sort({ date: -1 });
@@ -227,10 +250,19 @@ export class AttendanceService {
     });
 
     const totalDays = records.length;
-    const presentDays = records.filter(r => r.status === 'present').length;
-    const totalWorkingHours = records.reduce((sum, r) => sum + (r.workingHours || 0), 0);
-    const totalLateMinutes = records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
-    const totalOvertimeMinutes = records.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
+    const presentDays = records.filter((r) => r.status === 'present').length;
+    const totalWorkingHours = records.reduce(
+      (sum, r) => sum + (r.workingHours || 0),
+      0,
+    );
+    const totalLateMinutes = records.reduce(
+      (sum, r) => sum + (r.lateMinutes || 0),
+      0,
+    );
+    const totalOvertimeMinutes = records.reduce(
+      (sum, r) => sum + (r.overtimeMinutes || 0),
+      0,
+    );
 
     return {
       employeeId,
@@ -242,7 +274,10 @@ export class AttendanceService {
       totalWorkingHours: parseFloat(totalWorkingHours.toFixed(2)),
       totalLateMinutes,
       totalOvertimeMinutes,
-      avgWorkingHours: presentDays > 0 ? parseFloat((totalWorkingHours / presentDays).toFixed(2)) : 0,
+      avgWorkingHours:
+        presentDays > 0
+          ? parseFloat((totalWorkingHours / presentDays).toFixed(2))
+          : 0,
     };
   }
 }

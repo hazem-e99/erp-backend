@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AuditLog, AuditLogDocument, AuditAction, AuditEntity, AuditStatus } from './schemas/audit-log.schema';
+import {
+  AuditLog,
+  AuditLogDocument,
+  AuditAction,
+  AuditEntity,
+  AuditStatus,
+} from './schemas/audit-log.schema';
 import { CreateAuditLogDto, QueryAuditLogDto } from './dto/audit-log.dto';
 
 @Injectable()
@@ -138,7 +144,10 @@ export class AuditService {
   /**
    * Get recent activity for a specific user
    */
-  async getUserActivity(userId: string, limit: number = 20): Promise<AuditLog[]> {
+  async getUserActivity(
+    userId: string,
+    limit: number = 20,
+  ): Promise<AuditLog[]> {
     return this.auditLogModel
       .find({ userId: userId as any })
       .sort({ createdAt: -1 })
@@ -151,42 +160,43 @@ export class AuditService {
    */
   async getStats(startDate?: Date, endDate?: Date) {
     const filter: any = {};
-    
+
     if (startDate || endDate) {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = startDate;
       if (endDate) filter.createdAt.$lte = endDate;
     }
 
-    const [
-      totalLogs,
-      actionStats,
-      entityStats,
-      userStats,
-      statusStats,
-    ] = await Promise.all([
-      this.auditLogModel.countDocuments(filter),
-      this.auditLogModel.aggregate([
-        { $match: filter },
-        { $group: { _id: '$action', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-      this.auditLogModel.aggregate([
-        { $match: filter },
-        { $group: { _id: '$entity', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-      this.auditLogModel.aggregate([
-        { $match: filter },
-        { $group: { _id: '$userId', count: { $sum: 1 }, userEmail: { $first: '$userEmail' } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ]),
-      this.auditLogModel.aggregate([
-        { $match: filter },
-        { $group: { _id: '$status', count: { $sum: 1 } } },
-      ]),
-    ]);
+    const [totalLogs, actionStats, entityStats, userStats, statusStats] =
+      await Promise.all([
+        this.auditLogModel.countDocuments(filter),
+        this.auditLogModel.aggregate([
+          { $match: filter },
+          { $group: { _id: '$action', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+        this.auditLogModel.aggregate([
+          { $match: filter },
+          { $group: { _id: '$entity', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+        this.auditLogModel.aggregate([
+          { $match: filter },
+          {
+            $group: {
+              _id: '$userId',
+              count: { $sum: 1 },
+              userEmail: { $first: '$userEmail' },
+            },
+          },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]),
+        this.auditLogModel.aggregate([
+          { $match: filter },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ]),
+      ]);
 
     return {
       totalLogs,

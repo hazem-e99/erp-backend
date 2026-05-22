@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -38,7 +47,10 @@ export class DepartmentsController {
   @Put(':id')
   @RequirePermissions('departments:update')
   @ApiOperation({ summary: 'Update department' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateDepartmentDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateDepartmentDto,
+  ) {
     return this.departmentsService.update(id, dto);
   }
 

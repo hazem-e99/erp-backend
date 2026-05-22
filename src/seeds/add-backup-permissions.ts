@@ -18,7 +18,10 @@ const BACKUP_PERMISSIONS = [
 ];
 
 async function run() {
-  const uri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/erp';
+  const uri =
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI ||
+    'mongodb://localhost:27017/erp';
 
   await mongoose.connect(uri);
   console.log('Connected to MongoDB');
@@ -30,7 +33,9 @@ async function run() {
   // Super Admin already has '*', so these permissions are implicitly granted — but we add them
   // explicitly so the frontend `hasPermission('backup:export')` check works even on non-wildcard
   // admin roles.
-  const targets = await roles.find({ name: { $in: ['Super Admin', 'admin'] } }).toArray();
+  const targets = await roles
+    .find({ name: { $in: ['Super Admin', 'admin'] } })
+    .toArray();
   if (targets.length === 0) {
     console.log('No Super Admin / admin role found — nothing to do.');
     await mongoose.connection.close();
@@ -40,7 +45,9 @@ async function run() {
   for (const role of targets) {
     const existing: string[] = role.permissions ?? [];
     if (existing.includes('*')) {
-      console.log(`Role "${role.name}" already has wildcard '*' — skipping explicit add`);
+      console.log(
+        `Role "${role.name}" already has wildcard '*' — skipping explicit add`,
+      );
       continue;
     }
     const toAdd = BACKUP_PERMISSIONS.filter((p) => !existing.includes(p));
@@ -48,8 +55,13 @@ async function run() {
       console.log(`Role "${role.name}" already has all backup permissions`);
       continue;
     }
-    await roles.updateOne({ _id: role._id }, { $addToSet: { permissions: { $each: toAdd } } });
-    console.log(`Added ${toAdd.length} backup permissions to role "${role.name}"`);
+    await roles.updateOne(
+      { _id: role._id },
+      { $addToSet: { permissions: { $each: toAdd } } },
+    );
+    console.log(
+      `Added ${toAdd.length} backup permissions to role "${role.name}"`,
+    );
   }
 
   await mongoose.connection.close();

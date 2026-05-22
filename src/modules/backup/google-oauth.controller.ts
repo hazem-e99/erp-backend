@@ -116,7 +116,10 @@ export class GoogleOAuthController {
         const role = await this.roleModel.findById(user.role).lean();
         if (role) permissions = role.permissions ?? [];
       }
-      if (!permissions.includes('*') && !permissions.includes('backup:export')) {
+      if (
+        !permissions.includes('*') &&
+        !permissions.includes('backup:export')
+      ) {
         return redirect('error', 'forbidden');
       }
 
@@ -141,7 +144,11 @@ export class GoogleOAuthController {
     const origin = this.config.get<string>('FRONTEND_URL');
     if (origin) return origin;
     const cors = this.config.get<string>('CORS_ORIGIN', '');
-    const first = cors.split(',').map((s) => s.trim()).filter(Boolean).find((v) => v !== '*');
+    const first = cors
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .find((v) => v !== '*');
     if (first) return first;
     const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     return `${proto}://${req.get('host')}`;

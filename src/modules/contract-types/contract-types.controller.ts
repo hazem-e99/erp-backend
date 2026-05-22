@@ -1,10 +1,22 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ContractTypesService } from './contract-types.service';
-import { CreateContractTypeDto, UpdateContractTypeDto } from './dto/contract-type.dto';
+import {
+  CreateContractTypeDto,
+  UpdateContractTypeDto,
+} from './dto/contract-type.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
 
 @ApiTags('Contract Types')
@@ -38,7 +50,10 @@ export class ContractTypesController {
   @Put(':id')
   @RequirePermissions('contract-types:update')
   @ApiOperation({ summary: 'Update contract type' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateContractTypeDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateContractTypeDto,
+  ) {
     return this.contractTypesService.update(id, dto);
   }
 

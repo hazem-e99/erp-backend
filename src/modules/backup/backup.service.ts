@@ -69,7 +69,8 @@ export class BackupService {
 
   private mongoUri(): string {
     const uri = this.config.get<string>('MONGO_URI');
-    if (!uri) throw new InternalServerErrorException('MONGO_URI not configured');
+    if (!uri)
+      throw new InternalServerErrorException('MONGO_URI not configured');
     return uri;
   }
 
@@ -136,7 +137,9 @@ export class BackupService {
       '--gzip',
       '--quiet',
     ];
-    const child = spawn(this.dumpBinary(), dumpArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(this.dumpBinary(), dumpArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
     const hash = crypto.createHash('sha256');
     const sizeTracker = new PassThrough();
@@ -169,7 +172,12 @@ export class BackupService {
       });
       child.on('exit', (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`mongodump exited with code ${code}: ${stderrBuf.slice(-500)}`));
+        else
+          reject(
+            new Error(
+              `mongodump exited with code ${code}: ${stderrBuf.slice(-500)}`,
+            ),
+          );
       });
     });
 
@@ -204,7 +212,9 @@ export class BackupService {
           userAgent: actor.userAgent,
         });
       }
-      throw new InternalServerErrorException(`Backup failed: ${err?.message ?? err}`);
+      throw new InternalServerErrorException(
+        `Backup failed: ${err?.message ?? err}`,
+      );
     }
 
     record.sha256 = hash.digest('hex');
@@ -241,7 +251,11 @@ export class BackupService {
   }
 
   async listBackups(): Promise<BackupRecordDocument[]> {
-    return this.backupRecordModel.find().sort({ createdAt: -1 }).limit(200).exec();
+    return this.backupRecordModel
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .exec();
   }
 
   async findById(id: string): Promise<BackupRecordDocument> {
@@ -250,9 +264,12 @@ export class BackupService {
     return rec;
   }
 
-  async downloadStream(id: string): Promise<{ stream: Readable; record: BackupRecordDocument }> {
+  async downloadStream(
+    id: string,
+  ): Promise<{ stream: Readable; record: BackupRecordDocument }> {
     const record = await this.findById(id);
-    if (!record.remoteKey) throw new NotFoundException('Backup has no remote key');
+    if (!record.remoteKey)
+      throw new NotFoundException('Backup has no remote key');
     const stream = await this.storage.download(record.remoteKey);
     return { stream, record };
   }
@@ -263,7 +280,9 @@ export class BackupService {
       try {
         await this.storage.delete(record.remoteKey);
       } catch (err: any) {
-        this.logger.warn(`Storage delete failed for ${record.filename}: ${err?.message}`);
+        this.logger.warn(
+          `Storage delete failed for ${record.filename}: ${err?.message}`,
+        );
       }
     }
     await this.backupRecordModel.deleteOne({ _id: record._id }).exec();
@@ -281,7 +300,11 @@ export class BackupService {
     });
   }
 
-  async verifyPasswordAndPhrase(userId: string, password: string, phrase: string): Promise<void> {
+  async verifyPasswordAndPhrase(
+    userId: string,
+    password: string,
+    phrase: string,
+  ): Promise<void> {
     const expected = this.config.get<string>(
       'BACKUP_RESTORE_PHRASE',
       'RESTORE PRODUCTION DATABASE',
@@ -289,14 +312,22 @@ export class BackupService {
     if (phrase.trim() !== expected) {
       throw new BadRequestException('Confirmation phrase does not match');
     }
-    const user = await this.userModel.findById(userId).select('+password').exec();
+    const user = await this.userModel
+      .findById(userId)
+      .select('+password')
+      .exec();
     if (!user) throw new UnauthorizedException('User not found');
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new UnauthorizedException('Password is incorrect');
   }
 
-  private async streamToTempFile(input: Readable): Promise<{ filePath: string; sha256: string; sizeBytes: number }> {
-    const tmpPath = path.join(os.tmpdir(), `erp-restore-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.archive.gz`);
+  private async streamToTempFile(
+    input: Readable,
+  ): Promise<{ filePath: string; sha256: string; sizeBytes: number }> {
+    const tmpPath = path.join(
+      os.tmpdir(),
+      `erp-restore-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.archive.gz`,
+    );
     const hash = crypto.createHash('sha256');
     let sizeBytes = 0;
     const write = fs.createWriteStream(tmpPath);
@@ -316,7 +347,8 @@ export class BackupService {
     uploadedPath: string,
     actor: ActorContext,
   ): Promise<string> {
-    const allowForeign = this.config.get<string>('BACKUP_ALLOW_FOREIGN', 'false') === 'true';
+    const allowForeign =
+      this.config.get<string>('BACKUP_ALLOW_FOREIGN', 'false') === 'true';
     const hash = crypto.createHash('sha256');
     let sizeBytes = 0;
     await pipeline(
@@ -332,33 +364,64 @@ export class BackupService {
     const sha256 = hash.digest('hex');
 
     if (!allowForeign) {
-      const known = await this.backupRecordModel.findOne({ sha256, status: BackupStatus.SUCCEEDED }).exec();
+      const known = await this.backupRecordModel
+        .findOne({ sha256, status: BackupStatus.SUCCEEDED })
+        .exec();
       if (!known) {
-        try { fs.unlinkSync(uploadedPath); } catch { /* ignore */ }
+        try {
+          fs.unlinkSync(uploadedPath);
+        } catch {
+          /* ignore */
+        }
         throw new BadRequestException(
           'Uploaded file does not match any known backup (SHA-256 mismatch). Set BACKUP_ALLOW_FOREIGN=true to bypass.',
         );
       }
     }
 
-    return this.launchRestoreJob(uploadedPath, path.basename(uploadedPath), sha256, sizeBytes, actor, true);
+    return this.launchRestoreJob(
+      uploadedPath,
+      path.basename(uploadedPath),
+      sha256,
+      sizeBytes,
+      actor,
+      true,
+    );
   }
 
-  async startRestoreFromRecord(backupId: string, actor: ActorContext): Promise<string> {
+  async startRestoreFromRecord(
+    backupId: string,
+    actor: ActorContext,
+  ): Promise<string> {
     const record = await this.findById(backupId);
-    if (!record.remoteKey) throw new NotFoundException('Backup has no remote key');
+    if (!record.remoteKey)
+      throw new NotFoundException('Backup has no remote key');
     if (record.status !== BackupStatus.SUCCEEDED) {
       throw new ConflictException('Cannot restore from a non-succeeded backup');
     }
     const download = await this.storage.download(record.remoteKey);
-    const { filePath, sha256, sizeBytes } = await this.streamToTempFile(download);
+    const { filePath, sha256, sizeBytes } =
+      await this.streamToTempFile(download);
 
     if (record.sha256 && sha256 !== record.sha256) {
-      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
-      throw new ConflictException('Downloaded archive SHA-256 mismatch — corruption detected');
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        /* ignore */
+      }
+      throw new ConflictException(
+        'Downloaded archive SHA-256 mismatch — corruption detected',
+      );
     }
 
-    return this.launchRestoreJob(filePath, record.filename, sha256, sizeBytes, actor, true);
+    return this.launchRestoreJob(
+      filePath,
+      record.filename,
+      sha256,
+      sizeBytes,
+      actor,
+      true,
+    );
   }
 
   getRestoreJob(jobId: string): RestoreJobState {
@@ -376,7 +439,9 @@ export class BackupService {
     cleanupTmp: boolean,
   ): string {
     if (!this.lock.acquire(`Restore in progress: ${filename}`)) {
-      throw new ConflictException('Another maintenance operation is already running');
+      throw new ConflictException(
+        'Another maintenance operation is already running',
+      );
     }
 
     const jobId = crypto.randomUUID();
@@ -398,9 +463,13 @@ export class BackupService {
         '--quiet',
       ];
 
-      const child = spawn(this.restoreBinary(), restoreArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(this.restoreBinary(), restoreArgs, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       let stderrBuf = '';
-      child.stderr.on('data', (d) => { stderrBuf += d.toString(); });
+      child.stderr.on('data', (d) => {
+        stderrBuf += d.toString();
+      });
 
       try {
         await this.audit.logAction({
@@ -430,7 +499,12 @@ export class BackupService {
           });
           child.on('exit', (code) => {
             if (code === 0) resolve();
-            else reject(new Error(`mongorestore exited with code ${code}: ${stderrBuf.slice(-500)}`));
+            else
+              reject(
+                new Error(
+                  `mongorestore exited with code ${code}: ${stderrBuf.slice(-500)}`,
+                ),
+              );
           });
         });
 
@@ -454,7 +528,11 @@ export class BackupService {
           userAgent: actor.userAgent,
         });
       } catch (err: any) {
-        try { child.kill('SIGKILL'); } catch { /* ignore */ }
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* ignore */
+        }
         job.status = 'failed';
         job.error = err?.message ?? 'restore failed';
         job.finishedAt = new Date();
@@ -472,10 +550,16 @@ export class BackupService {
       } finally {
         this.lock.release();
         if (cleanupTmp) {
-          try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+          try {
+            fs.unlinkSync(filePath);
+          } catch {
+            /* ignore */
+          }
         }
       }
-    })().catch((e) => this.logger.error(`Restore job runaway error: ${e?.message}`));
+    })().catch((e) =>
+      this.logger.error(`Restore job runaway error: ${e?.message}`),
+    );
 
     return jobId;
   }

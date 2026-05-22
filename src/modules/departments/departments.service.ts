@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Department, DepartmentDocument } from './schemas/department.schema';
@@ -7,7 +11,8 @@ import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 @Injectable()
 export class DepartmentsService {
   constructor(
-    @InjectModel(Department.name) private departmentModel: Model<DepartmentDocument>,
+    @InjectModel(Department.name)
+    private departmentModel: Model<DepartmentDocument>,
   ) {}
 
   async create(dto: CreateDepartmentDto): Promise<Department> {
@@ -32,7 +37,9 @@ export class DepartmentsService {
   }
 
   async update(id: string, dto: UpdateDepartmentDto): Promise<Department> {
-    const department = await this.departmentModel.findByIdAndUpdate(id, dto, { new: true });
+    const department = await this.departmentModel.findByIdAndUpdate(id, dto, {
+      new: true,
+    });
     if (!department) {
       throw new NotFoundException('Department not found');
     }

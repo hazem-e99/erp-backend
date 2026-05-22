@@ -26,14 +26,18 @@ export class TokenCryptoService {
       this.key = Buffer.from(raw, 'hex');
     } else {
       const buf = Buffer.from(raw, 'base64');
-      this.key = buf.length === 32 ? buf : crypto.scryptSync(raw, 'erp-backup', 32);
+      this.key =
+        buf.length === 32 ? buf : crypto.scryptSync(raw, 'erp-backup', 32);
     }
   }
 
   encrypt(plaintext: string): EncryptedPayload {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(ALGO, this.key, iv);
-    const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const ct = Buffer.concat([
+      cipher.update(plaintext, 'utf8'),
+      cipher.final(),
+    ]);
     const tag = cipher.getAuthTag();
     return {
       ciphertext: ct.toString('base64'),
@@ -48,6 +52,8 @@ export class TokenCryptoService {
     const ct = Buffer.from(payload.ciphertext, 'base64');
     const decipher = crypto.createDecipheriv(ALGO, this.key, iv);
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString(
+      'utf8',
+    );
   }
 }

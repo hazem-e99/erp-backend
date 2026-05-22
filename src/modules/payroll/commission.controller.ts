@@ -1,6 +1,15 @@
 import {
   BadRequestException,
-  Body, Controller, Delete, Get, Param, Patch, Query, UploadedFile, UseGuards, UseInterceptors,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -8,7 +17,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { CommissionService } from './commission.service';
-import { ApproveCommissionDto, CommissionsQueryDto } from './dto/commission.dto';
+import {
+  ApproveCommissionDto,
+  CommissionsQueryDto,
+} from './dto/commission.dto';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -55,7 +67,9 @@ export class CommissionController {
     @CurrentUser('_id') userId: string,
   ) {
     if (!file) {
-      throw new BadRequestException('Transfer screenshot is required to approve a commission');
+      throw new BadRequestException(
+        'Transfer screenshot is required to approve a commission',
+      );
     }
     const screenshotPath = `/uploads/commissions/${file.filename}`;
     return this.service.approve(id, dto, userId ?? null, screenshotPath);

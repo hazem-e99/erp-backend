@@ -7,8 +7,11 @@ config();
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 async function checkRoles() {
-  const uri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/erp';
-  
+  const uri =
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI ||
+    'mongodb://localhost:27017/erp';
+
   try {
     await mongoose.connect(uri);
     console.log('✅ Connected to MongoDB');
@@ -20,12 +23,13 @@ async function checkRoles() {
 
     const rolesCollection = db.collection('roles');
     const roles = await rolesCollection.find({}).toArray();
-    
-    console.log('\n📋 Roles in database:', roles.length);
-    roles.forEach(role => {
-      console.log(`   - ${role.name} (${role.permissions?.length || 0} permissions)`);
-    });
 
+    console.log('\n📋 Roles in database:', roles.length);
+    roles.forEach((role) => {
+      console.log(
+        `   - ${role.name} (${role.permissions?.length || 0} permissions)`,
+      );
+    });
   } catch (error: any) {
     console.error('❌ Error:', error.message);
     process.exit(1);

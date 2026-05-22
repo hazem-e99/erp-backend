@@ -4,7 +4,10 @@ import { HrService } from './hr.service';
 import { HrController } from './hr.controller';
 import { ExportService } from './export.service';
 import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
-import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
+import {
+  Attendance,
+  AttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
 import { Leave, LeaveSchema } from '../leaves/schemas/leave.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Project, ProjectSchema } from '../projects/schemas/project.schema';

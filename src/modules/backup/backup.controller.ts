@@ -55,7 +55,10 @@ export class BackupController {
   @ApiOperation({ summary: 'Run a manual database export now' })
   async export(@Req() req: express.Request) {
     const actor = extractActor(req);
-    const record = await this.backupService.runExport(BackupSource.MANUAL, actor);
+    const record = await this.backupService.runExport(
+      BackupSource.MANUAL,
+      actor,
+    );
     return {
       id: record._id?.toString(),
       filename: record.filename,
@@ -89,7 +92,10 @@ export class BackupController {
 
   @Get('export-json')
   @RequirePermissions('backup:export')
-  @ApiOperation({ summary: 'Download full database as a browsable JSON ZIP (download-only, not restorable)' })
+  @ApiOperation({
+    summary:
+      'Download full database as a browsable JSON ZIP (download-only, not restorable)',
+  })
   async exportJson(@Req() req: express.Request, @Res() res: express.Response) {
     const actor = extractActor(req);
     const filename = this.jsonExportService.buildFilename();
@@ -120,10 +126,14 @@ export class BackupController {
   async download(@Param('id') id: string, @Res() res: express.Response) {
     const { stream, record } = await this.backupService.downloadStream(id);
     res.setHeader('Content-Type', 'application/gzip');
-    res.setHeader('Content-Disposition', `attachment; filename="${record.filename}"`);
-    if (record.sizeBytes) res.setHeader('Content-Length', String(record.sizeBytes));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${record.filename}"`,
+    );
+    if (record.sizeBytes)
+      res.setHeader('Content-Length', String(record.sizeBytes));
     stream.on('error', (err) => {
-      res.destroy(err as Error);
+      res.destroy(err);
     });
     stream.pipe(res);
   }
@@ -145,7 +155,10 @@ export class BackupController {
         destination: (_req, _file, cb) => cb(null, os.tmpdir()),
         filename: (_req, file, cb) => {
           const suffix = crypto.randomBytes(4).toString('hex');
-          cb(null, `erp-import-${Date.now()}-${suffix}-${path.basename(file.originalname)}`);
+          cb(
+            null,
+            `erp-import-${Date.now()}-${suffix}-${path.basename(file.originalname)}`,
+          );
         },
       }),
       limits: {
@@ -160,7 +173,9 @@ export class BackupController {
       },
     }),
   )
-  @ApiOperation({ summary: 'Restore database from uploaded archive (destructive)' })
+  @ApiOperation({
+    summary: 'Restore database from uploaded archive (destructive)',
+  })
   async importUpload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: RestoreDto,
@@ -171,22 +186,45 @@ export class BackupController {
     }
     const actor = extractActor(req);
     try {
-      await this.backupService.verifyPasswordAndPhrase(actor.userId, dto.password, dto.confirmPhrase);
+      await this.backupService.verifyPasswordAndPhrase(
+        actor.userId,
+        dto.password,
+        dto.confirmPhrase,
+      );
     } catch (err) {
-      try { fs.unlinkSync(file.path); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        /* ignore */
+      }
       throw err;
     }
-    const jobId = await this.backupService.startRestoreFromUpload(file.path, actor);
+    const jobId = await this.backupService.startRestoreFromUpload(
+      file.path,
+      actor,
+    );
     return { jobId, status: 'running' };
   }
 
   @Post('import/existing')
   @RequirePermissions('backup:import')
-  @ApiOperation({ summary: 'Restore from an existing backup record (destructive)' })
-  async importExisting(@Body() dto: RestoreExistingDto, @Req() req: express.Request) {
+  @ApiOperation({
+    summary: 'Restore from an existing backup record (destructive)',
+  })
+  async importExisting(
+    @Body() dto: RestoreExistingDto,
+    @Req() req: express.Request,
+  ) {
     const actor = extractActor(req);
-    await this.backupService.verifyPasswordAndPhrase(actor.userId, dto.password, dto.confirmPhrase);
-    const jobId = await this.backupService.startRestoreFromRecord(dto.backupId, actor);
+    await this.backupService.verifyPasswordAndPhrase(
+      actor.userId,
+      dto.password,
+      dto.confirmPhrase,
+    );
+    const jobId = await this.backupService.startRestoreFromRecord(
+      dto.backupId,
+      actor,
+    );
     return { jobId, status: 'running' };
   }
 

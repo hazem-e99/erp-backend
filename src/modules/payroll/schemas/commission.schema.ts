@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../../finance/constants/currency.constants';
 
 export type CommissionDocument = Commission & Document;
 
@@ -53,7 +56,10 @@ export class Commission {
   @Prop({ default: BASE_CURRENCY, enum: Object.values(SupportedCurrency) })
   currency!: string;
 
-  @Prop({ default: CommissionStatus.PENDING, enum: Object.values(CommissionStatus) })
+  @Prop({
+    default: CommissionStatus.PENDING,
+    enum: Object.values(CommissionStatus),
+  })
   status!: string;
 
   // Month/year that the commission is allocated to in payroll. Set on approve.

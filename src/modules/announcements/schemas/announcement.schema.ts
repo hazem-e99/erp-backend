@@ -14,7 +14,10 @@ export class Announcement {
   @Prop({ required: true })
   message: string;
 
-  @Prop({ required: true, enum: ['all', 'users', 'roles', 'departments', 'projects'] })
+  @Prop({
+    required: true,
+    enum: ['all', 'users', 'roles', 'departments', 'projects'],
+  })
   targetType: string;
 
   @Prop({ type: [String], default: [] })

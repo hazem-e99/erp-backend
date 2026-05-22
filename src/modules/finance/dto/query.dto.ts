@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsDateString, IsEnum, IsInt, Min, Max, IsString } from 'class-validator';
+import {
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+} from 'class-validator';
 import { SupportedCurrency } from '../constants/currency.constants';
 
 export class ReportQueryDto {

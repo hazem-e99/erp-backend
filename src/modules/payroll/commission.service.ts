@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -7,9 +12,15 @@ import {
   CommissionStatus,
   CommissionSourceType,
 } from './schemas/commission.schema';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
 import { Expense, ExpenseDocument } from '../finance/schemas/expense.schema';
-import { ApproveCommissionDto, CommissionsQueryDto } from './dto/commission.dto';
+import {
+  ApproveCommissionDto,
+  CommissionsQueryDto,
+} from './dto/commission.dto';
 import { BASE_CURRENCY } from '../finance/constants/currency.constants';
 
 interface CreateCommissionInput {
@@ -30,7 +41,8 @@ export class CommissionService {
   private readonly logger = new Logger(CommissionService.name);
 
   constructor(
-    @InjectModel(Commission.name) private commissionModel: Model<CommissionDocument>,
+    @InjectModel(Commission.name)
+    private commissionModel: Model<CommissionDocument>,
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
     @InjectModel(Expense.name) private expenseModel: Model<ExpenseDocument>,
   ) {}
@@ -38,7 +50,9 @@ export class CommissionService {
   /**
    * Create a single commission record. Used by the subscription create flow.
    */
-  async createCommission(input: CreateCommissionInput): Promise<CommissionDocument> {
+  async createCommission(
+    input: CreateCommissionInput,
+  ): Promise<CommissionDocument> {
     const baseCommissionAmount = parseFloat(
       ((input.baseSourceNetAmount * input.percentage) / 100).toFixed(2),
     );
@@ -48,8 +62,12 @@ export class CommissionService {
       employeeName: input.employeeName,
       sourceType: input.sourceType,
       sourceId: new Types.ObjectId(String(input.sourceId)),
-      subscriptionId: input.subscriptionId ? new Types.ObjectId(String(input.subscriptionId)) : null,
-      clientId: input.clientId ? new Types.ObjectId(String(input.clientId)) : null,
+      subscriptionId: input.subscriptionId
+        ? new Types.ObjectId(String(input.subscriptionId))
+        : null,
+      clientId: input.clientId
+        ? new Types.ObjectId(String(input.clientId))
+        : null,
       clientName: input.clientName ?? '',
       percentage: input.percentage,
       baseSourceNetAmount: input.baseSourceNetAmount,
@@ -72,7 +90,9 @@ export class CommissionService {
   }): Promise<CommissionDocument[]> {
     if (!params.assignments?.length) return [];
 
-    const employeeIds = params.assignments.map((a) => new Types.ObjectId(a.employeeId));
+    const employeeIds = params.assignments.map(
+      (a) => new Types.ObjectId(a.employeeId),
+    );
     const employees = await this.employeeModel
       .find({ _id: { $in: employeeIds } })
       .select('_id name')
@@ -110,11 +130,15 @@ export class CommissionService {
   async findAll(query: CommissionsQueryDto) {
     const filter: Record<string, any> = {};
     if (query.status) filter.status = query.status;
-    if (query.employeeId) filter.employeeId = new Types.ObjectId(query.employeeId);
+    if (query.employeeId)
+      filter.employeeId = new Types.ObjectId(query.employeeId);
     if (query.month) filter.payrollMonth = Number(query.month);
     if (query.year) filter.payrollYear = Number(query.year);
 
-    const data = await this.commissionModel.find(filter).sort({ createdAt: -1 }).lean();
+    const data = await this.commissionModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
     return { data, total: data.length };
   }
 
@@ -156,9 +180,10 @@ export class CommissionService {
     commission.payrollYear = dto.year;
     commission.approvedAt = new Date();
     commission.approvedBy = approverId ? new Types.ObjectId(approverId) : null;
-    commission.expenseId = expense._id as Types.ObjectId;
+    commission.expenseId = expense._id;
     commission.transferScreenshot = screenshotPath;
-    if (dto.transactionNumber !== undefined) commission.transactionNumber = dto.transactionNumber;
+    if (dto.transactionNumber !== undefined)
+      commission.transactionNumber = dto.transactionNumber;
     if (dto.notes !== undefined) commission.notes = dto.notes;
     await commission.save();
     return commission;
@@ -168,7 +193,9 @@ export class CommissionService {
     const commission = await this.commissionModel.findById(id);
     if (!commission) throw new NotFoundException('Commission not found');
     if (commission.status === CommissionStatus.PAID) {
-      throw new BadRequestException('Cannot cancel a commission that has already been paid');
+      throw new BadRequestException(
+        'Cannot cancel a commission that has already been paid',
+      );
     }
 
     // If the commission was approved, remove its linked expense
@@ -176,7 +203,9 @@ export class CommissionService {
       try {
         await this.expenseModel.findByIdAndDelete(commission.expenseId);
       } catch (err: any) {
-        this.logger.warn(`Failed to delete expense ${commission.expenseId} for commission ${id}: ${err.message}`);
+        this.logger.warn(
+          `Failed to delete expense ${commission.expenseId} for commission ${id}: ${err.message}`,
+        );
       }
       commission.expenseId = null;
     }
@@ -185,5 +214,4 @@ export class CommissionService {
     await commission.save();
     return commission;
   }
-
 }

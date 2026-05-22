@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
@@ -45,7 +55,10 @@ export class ClientsController {
   @Put(':id')
   @RequirePermissions('clients:update')
   @ApiOperation({ summary: 'Update client' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateClientDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateClientDto,
+  ) {
     return this.clientsService.update(id, dto);
   }
 

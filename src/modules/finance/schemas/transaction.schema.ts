@@ -4,7 +4,10 @@
  */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../constants/currency.constants';
 
 export type TransactionDocument = HydratedDocument<Transaction>;
 

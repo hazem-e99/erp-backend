@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -38,7 +47,10 @@ export class PositionsController {
   @Put(':id')
   @RequirePermissions('positions:update')
   @ApiOperation({ summary: 'Update position' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdatePositionDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdatePositionDto,
+  ) {
     return this.positionsService.update(id, dto);
   }
 

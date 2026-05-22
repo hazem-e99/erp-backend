@@ -43,7 +43,11 @@ import { AuditModule } from '../audit/audit.module';
       { name: Role.name, schema: RoleSchema },
     ]),
   ],
-  controllers: [BackupController, GoogleOAuthController, BackupTriggerController],
+  controllers: [
+    BackupController,
+    GoogleOAuthController,
+    BackupTriggerController,
+  ],
   providers: [
     BackupService,
     JsonExportService,
@@ -60,7 +64,10 @@ import { AuditModule } from '../audit/audit.module';
         drive: GoogleDriveStorage,
         local: LocalStorage,
       ) => {
-        const driver = config.get<string>('BACKUP_STORAGE_DRIVER', 'google-drive');
+        const driver = config.get<string>(
+          'BACKUP_STORAGE_DRIVER',
+          'google-drive',
+        );
         return driver === 'local' ? local : drive;
       },
     },

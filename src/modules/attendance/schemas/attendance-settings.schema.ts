@@ -50,4 +50,5 @@ export class AttendanceSettings {
   label: string;
 }
 
-export const AttendanceSettingsSchema = SchemaFactory.createForClass(AttendanceSettings);
+export const AttendanceSettingsSchema =
+  SchemaFactory.createForClass(AttendanceSettings);

@@ -8,7 +8,10 @@ export class Leave {
   @Prop({ type: Types.ObjectId, ref: 'Employee', required: true })
   employeeId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['annual', 'sick', 'personal', 'emergency', 'unpaid'] })
+  @Prop({
+    required: true,
+    enum: ['annual', 'sick', 'personal', 'emergency', 'unpaid'],
+  })
   type: string;
 
   @Prop({ required: true })

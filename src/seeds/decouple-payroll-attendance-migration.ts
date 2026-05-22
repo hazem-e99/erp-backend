@@ -48,8 +48,8 @@ async function migrate() {
 
       const effectiveProratedBase =
         p.cycleStart != null
-          ? p.baseProratedBaseSalary ?? 0
-          : p.baseBaseSalary ?? 0;
+          ? (p.baseProratedBaseSalary ?? 0)
+          : (p.baseBaseSalary ?? 0);
 
       const newNet = parseFloat(
         (
@@ -90,9 +90,7 @@ async function migrate() {
       );
       recalculated++;
     }
-    console.log(
-      `   ↪ recalculated ${recalculated}, unchanged ${unchanged}`,
-    );
+    console.log(`   ↪ recalculated ${recalculated}, unchanged ${unchanged}`);
 
     // ── 2. Unset the deprecated fields ──
     console.log('\n🧹 Unsetting deprecated overtime/attendance fields...');

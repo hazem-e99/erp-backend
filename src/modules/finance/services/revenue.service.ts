@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
+import {
+  Revenue,
+  RevenueDocument,
+  RevenueStatus,
+} from '../schemas/revenue.schema';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { getMonthDateRange } from '../validators/finance.validators';
@@ -25,9 +29,13 @@ export class RevenueService {
       const { start, end } = getMonthDateRange(query.month, query.year);
       filter.recognitionDate = { $gte: start, $lte: end };
     } else {
-      if (query.startDate) filter.recognitionDate = { $gte: new Date(query.startDate) };
+      if (query.startDate)
+        filter.recognitionDate = { $gte: new Date(query.startDate) };
       if (query.endDate) {
-        filter.recognitionDate = { ...(filter.recognitionDate || {}), $lte: new Date(query.endDate) };
+        filter.recognitionDate = {
+          ...(filter.recognitionDate || {}),
+          $lte: new Date(query.endDate),
+        };
       }
     }
 
@@ -85,7 +93,9 @@ export class RevenueService {
     return result[0]?.total ?? 0;
   }
 
-  async getMonthlyChart(year: number): Promise<Array<{ month: number; recognized: number; pending: number }>> {
+  async getMonthlyChart(
+    year: number,
+  ): Promise<Array<{ month: number; recognized: number; pending: number }>> {
     const result = await this.revenueModel.aggregate([
       {
         $match: {
@@ -112,8 +122,10 @@ export class RevenueService {
     }
     for (const r of result) {
       const m = r._id.month;
-      if (r._id.status === RevenueStatus.RECOGNIZED) chart[m].recognized += r.total;
-      else if (r._id.status === RevenueStatus.PENDING) chart[m].pending += r.total;
+      if (r._id.status === RevenueStatus.RECOGNIZED)
+        chart[m].recognized += r.total;
+      else if (r._id.status === RevenueStatus.PENDING)
+        chart[m].pending += r.total;
     }
     return Object.entries(chart).map(([month, v]) => ({
       month: Number(month),

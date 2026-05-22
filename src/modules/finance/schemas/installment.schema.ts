@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../constants/currency.constants';
 
 export type InstallmentDocument = Installment & Document;
 
@@ -40,7 +43,10 @@ export class Installment {
   @Prop({ type: Date, required: true })
   dueDate!: Date;
 
-  @Prop({ default: InstallmentStatus.PENDING, enum: Object.values(InstallmentStatus) })
+  @Prop({
+    default: InstallmentStatus.PENDING,
+    enum: Object.values(InstallmentStatus),
+  })
   status!: string;
 
   @Prop({ default: 1 })

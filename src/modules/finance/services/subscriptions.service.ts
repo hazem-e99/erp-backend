@@ -1,16 +1,45 @@
-import { Injectable, BadRequestException, NotFoundException, Logger, PreconditionFailedException, PayloadTooLargeException, HttpException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+  PreconditionFailedException,
+  PayloadTooLargeException,
+  HttpException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Readable } from 'stream';
 import { addMonths } from 'date-fns';
-import { Subscription, SubscriptionDocument, SubscriptionStatus, PlanType, InstallmentPlan } from '../schemas/subscription.schema';
-import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
-import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
-import { CreateSubscriptionDto, InstallmentItemDto } from '../dto/create-subscription.dto';
+import {
+  Subscription,
+  SubscriptionDocument,
+  SubscriptionStatus,
+  PlanType,
+  InstallmentPlan,
+} from '../schemas/subscription.schema';
+import {
+  Installment,
+  InstallmentDocument,
+  InstallmentStatus,
+} from '../schemas/installment.schema';
+import {
+  Revenue,
+  RevenueDocument,
+  RevenueStatus,
+} from '../schemas/revenue.schema';
+import {
+  CreateSubscriptionDto,
+  InstallmentItemDto,
+} from '../dto/create-subscription.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
-import { roundCents, calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
+import {
+  roundCents,
+  calculateBaseAmount,
+  getMonthDateRange,
+} from '../validators/finance.validators';
 import { GoogleDriveStorage } from '../../backup/storage/google-drive.storage';
 import { CommissionService } from '../../payroll/commission.service';
 
@@ -22,8 +51,10 @@ export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
 
   constructor(
-    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
-    @InjectModel(Installment.name) private installmentModel: Model<InstallmentDocument>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<SubscriptionDocument>,
+    @InjectModel(Installment.name)
+    private installmentModel: Model<InstallmentDocument>,
     @InjectModel(Revenue.name) private revenueModel: Model<RevenueDocument>,
     private readonly gateway: FinanceGateway,
     private readonly googleDrive: GoogleDriveStorage,
@@ -35,10 +66,14 @@ export class SubscriptionsService {
    */
   private calcEndDate(start: Date, planType: PlanType): Date {
     switch (planType) {
-      case PlanType.MONTHLY:     return addMonths(start, 1);
-      case PlanType.QUARTERLY:   return addMonths(start, 3);
-      case PlanType.SEMI_ANNUAL: return addMonths(start, 6);
-      default: throw new BadRequestException(`Unknown plan type: ${planType}`);
+      case PlanType.MONTHLY:
+        return addMonths(start, 1);
+      case PlanType.QUARTERLY:
+        return addMonths(start, 3);
+      case PlanType.SEMI_ANNUAL:
+        return addMonths(start, 6);
+      default:
+        throw new BadRequestException(`Unknown plan type: ${planType}`);
     }
   }
 
@@ -47,9 +82,12 @@ export class SubscriptionsService {
    */
   private planMonths(planType: PlanType): number {
     switch (planType) {
-      case PlanType.MONTHLY:     return 1;
-      case PlanType.QUARTERLY:   return 3;
-      case PlanType.SEMI_ANNUAL: return 6;
+      case PlanType.MONTHLY:
+        return 1;
+      case PlanType.QUARTERLY:
+        return 3;
+      case PlanType.SEMI_ANNUAL:
+        return 6;
     }
   }
 
@@ -65,7 +103,10 @@ export class SubscriptionsService {
       if (!dto.installmentItems?.length) {
         throw FinanceErrors.SUBSCRIPTION_MISSING_ITEMS();
       }
-      if (dto.installmentPlan === InstallmentPlan.SPLIT_2 && dto.installmentItems.length !== 2) {
+      if (
+        dto.installmentPlan === InstallmentPlan.SPLIT_2 &&
+        dto.installmentItems.length !== 2
+      ) {
         throw FinanceErrors.SUBSCRIPTION_SPLIT2_REQUIRES_2();
       }
 
@@ -90,24 +131,35 @@ export class SubscriptionsService {
         });
       }
     } else if (!dto.totalPrice) {
-      throw new BadRequestException('totalPrice is required for full payment plan');
+      throw new BadRequestException(
+        'totalPrice is required for full payment plan',
+      );
     } else {
       // Normalize full-plan price
       dto.totalPrice = roundCents(dto.totalPrice);
     }
 
     const startDate = new Date(dto.startDate);
-    const endDate = this.calcEndDate(startDate, dto.planType as PlanType);
-    const months = this.planMonths(dto.planType as PlanType);
+    const endDate = this.calcEndDate(startDate, dto.planType);
+    const months = this.planMonths(dto.planType);
 
     // Calculate base total price (converted to base currency)
-    const baseTotalPrice = calculateBaseAmount(dto.totalPrice!, dto.exchangeRate);
+    const baseTotalPrice = calculateBaseAmount(
+      dto.totalPrice,
+      dto.exchangeRate,
+    );
 
     // Gate fees: customer pays full amount; fee is deducted from incoming amount
     const gateFeePercentage = dto.gateFeePercentage ?? 0;
-    const gateFeeAmount = parseFloat(((dto.totalPrice! * gateFeePercentage) / 100).toFixed(2));
-    const baseGateFeeAmount = parseFloat(((baseTotalPrice * gateFeePercentage) / 100).toFixed(2));
-    const baseNetTotalPrice = parseFloat((baseTotalPrice - baseGateFeeAmount).toFixed(2));
+    const gateFeeAmount = parseFloat(
+      ((dto.totalPrice * gateFeePercentage) / 100).toFixed(2),
+    );
+    const baseGateFeeAmount = parseFloat(
+      ((baseTotalPrice * gateFeePercentage) / 100).toFixed(2),
+    );
+    const baseNetTotalPrice = parseFloat(
+      (baseTotalPrice - baseGateFeeAmount).toFixed(2),
+    );
 
     // Validate commission percentages don't exceed 100% in aggregate
     if (dto.commissions?.length) {
@@ -120,7 +172,7 @@ export class SubscriptionsService {
     }
 
     // Calculate monthly revenue in both currencies
-    const monthlyRevenue = parseFloat((dto.totalPrice! / months).toFixed(2));
+    const monthlyRevenue = parseFloat((dto.totalPrice / months).toFixed(2));
     const monthlyRevenueBase = parseFloat((baseTotalPrice / months).toFixed(2));
 
     // Create subscription
@@ -165,13 +217,19 @@ export class SubscriptionsService {
     for (let i = 0; i < months; i++) {
       const recognitionDate = addMonths(startDate, i);
       // Adjust last entry for rounding difference (both currencies)
-      const amt = i === months - 1
-        ? parseFloat((dto.totalPrice - monthlyRevenue * (months - 1)).toFixed(2))
-        : monthlyRevenue;
-      const amtBase = i === months - 1
-        ? parseFloat((baseTotalPrice - monthlyRevenueBase * (months - 1)).toFixed(2))
-        : monthlyRevenueBase;
-      
+      const amt =
+        i === months - 1
+          ? parseFloat(
+              (dto.totalPrice - monthlyRevenue * (months - 1)).toFixed(2),
+            )
+          : monthlyRevenue;
+      const amtBase =
+        i === months - 1
+          ? parseFloat(
+              (baseTotalPrice - monthlyRevenueBase * (months - 1)).toFixed(2),
+            )
+          : monthlyRevenueBase;
+
       revenueEntries.push({
         subscriptionId: sub._id,
         clientId: new Types.ObjectId(dto.clientId),
@@ -191,7 +249,9 @@ export class SubscriptionsService {
     // Generate Installments
     await this.generateInstallments(sub, dto);
 
-    this.gateway.emitFinanceUpdate('subscription:created', { subscriptionId: sub._id.toString() });
+    this.gateway.emitFinanceUpdate('subscription:created', {
+      subscriptionId: sub._id.toString(),
+    });
     return sub;
   }
 
@@ -201,20 +261,22 @@ export class SubscriptionsService {
   ): Promise<void> {
     // FULL plan — single installment on start date
     if (dto.installmentPlan === InstallmentPlan.FULL) {
-      await this.installmentModel.insertMany([{
-        subscriptionId: sub._id,
-        clientId: sub.clientId,
-        clientName: sub.clientName,
-        amount: sub.totalPrice,
-        currency: dto.currency,
-        exchangeRate: dto.exchangeRate,
-        baseAmount: sub.baseTotalPrice, // Use subscription's baseTotalPrice
-        paidAmount: 0,
-        dueDate: new Date(dto.startDate),
-        status: InstallmentStatus.PENDING,
-        installmentNumber: 1,
-        totalInstallments: 1,
-      }]);
+      await this.installmentModel.insertMany([
+        {
+          subscriptionId: sub._id,
+          clientId: sub.clientId,
+          clientName: sub.clientName,
+          amount: sub.totalPrice,
+          currency: dto.currency,
+          exchangeRate: dto.exchangeRate,
+          baseAmount: sub.baseTotalPrice, // Use subscription's baseTotalPrice
+          paidAmount: 0,
+          dueDate: new Date(dto.startDate),
+          status: InstallmentStatus.PENDING,
+          installmentNumber: 1,
+          totalInstallments: 1,
+        },
+      ]);
       return;
     }
 
@@ -224,7 +286,7 @@ export class SubscriptionsService {
       subscriptionId: sub._id,
       clientId: sub.clientId,
       clientName: sub.clientName,
-      amount: roundCents(item.amount),   // normalized original currency
+      amount: roundCents(item.amount), // normalized original currency
       currency: dto.currency,
       exchangeRate: dto.exchangeRate,
       baseAmount: calculateBaseAmount(item.amount, dto.exchangeRate), // Converted to base
@@ -249,14 +311,23 @@ export class SubscriptionsService {
       const { start, end } = getMonthDateRange(query.month, query.year);
       filter.startDate = { $gte: start, $lte: end };
     } else {
-      if (query.startDate) filter.startDate = { $gte: new Date(query.startDate) };
+      if (query.startDate)
+        filter.startDate = { $gte: new Date(query.startDate) };
       if (query.endDate) {
-        filter.startDate = { ...(filter.startDate || {}), $lte: new Date(query.endDate) };
+        filter.startDate = {
+          ...(filter.startDate || {}),
+          $lte: new Date(query.endDate),
+        };
       }
     }
 
     const [data, total] = await Promise.all([
-      this.subscriptionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.subscriptionModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       this.subscriptionModel.countDocuments(filter),
     ]);
 
@@ -265,8 +336,12 @@ export class SubscriptionsService {
       data.map(async (sub) => {
         // Convert _id to ObjectId for proper matching
         const subscriptionId = new Types.ObjectId(sub._id);
-        const installments = await this.installmentModel.find({ subscriptionId }).lean();
-        const paidCount = installments.filter((i) => i.status === InstallmentStatus.PAID).length;
+        const installments = await this.installmentModel
+          .find({ subscriptionId })
+          .lean();
+        const paidCount = installments.filter(
+          (i) => i.status === InstallmentStatus.PAID,
+        ).length;
         const totalCount = installments.length;
         return {
           ...sub,
@@ -305,7 +380,9 @@ export class SubscriptionsService {
       { $set: { status: RevenueStatus.CANCELLED } },
     );
 
-    this.gateway.emitFinanceUpdate('subscription:cancelled', { subscriptionId: id });
+    this.gateway.emitFinanceUpdate('subscription:cancelled', {
+      subscriptionId: id,
+    });
     return sub;
   }
 
@@ -314,17 +391,21 @@ export class SubscriptionsService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-    const [
-      activeCount,
-      pendingCount,
-      completedCount,
-      cancelledCount,
-    ] = await Promise.all([
-      this.subscriptionModel.countDocuments({ status: SubscriptionStatus.ACTIVE }),
-      this.subscriptionModel.countDocuments({ status: SubscriptionStatus.PENDING }),
-      this.subscriptionModel.countDocuments({ status: SubscriptionStatus.COMPLETED }),
-      this.subscriptionModel.countDocuments({ status: SubscriptionStatus.CANCELLED }),
-    ]);
+    const [activeCount, pendingCount, completedCount, cancelledCount] =
+      await Promise.all([
+        this.subscriptionModel.countDocuments({
+          status: SubscriptionStatus.ACTIVE,
+        }),
+        this.subscriptionModel.countDocuments({
+          status: SubscriptionStatus.PENDING,
+        }),
+        this.subscriptionModel.countDocuments({
+          status: SubscriptionStatus.COMPLETED,
+        }),
+        this.subscriptionModel.countDocuments({
+          status: SubscriptionStatus.CANCELLED,
+        }),
+      ]);
 
     return { activeCount, pendingCount, completedCount, cancelledCount };
   }
@@ -433,10 +514,12 @@ export class SubscriptionsService {
         succeeded.map((d) =>
           this.googleDrive
             .deleteFromSubscriptionDocs(d.driveFileId)
-            .catch((err) => this.logger.error(`Rollback delete failed: ${err.message}`)),
+            .catch((err) =>
+              this.logger.error(`Rollback delete failed: ${err.message}`),
+            ),
         ),
       );
-      const reason = (failures[0] as PromiseRejectedResult).reason;
+      const reason = failures[0].reason;
       if (reason instanceof HttpException) {
         throw reason;
       }
@@ -463,10 +546,14 @@ export class SubscriptionsService {
   async streamDocument(subscriptionId: string, docId: string) {
     const sub = await this.subscriptionModel.findById(subscriptionId).lean();
     if (!sub) throw new NotFoundException('Subscription not found');
-    const doc = (sub.documents ?? []).find((d: any) => d._id?.toString() === docId);
+    const doc = (sub.documents ?? []).find(
+      (d: any) => d._id?.toString() === docId,
+    );
     if (!doc) throw new NotFoundException('Document not found');
 
-    const stream = await this.googleDrive.downloadFromSubscriptionDocs(doc.driveFileId);
+    const stream = await this.googleDrive.downloadFromSubscriptionDocs(
+      doc.driveFileId,
+    );
     return {
       stream,
       mimeType: doc.mimeType,
@@ -484,7 +571,9 @@ export class SubscriptionsService {
     try {
       await this.googleDrive.deleteFromSubscriptionDocs(doc.driveFileId);
     } catch (err: any) {
-      this.logger.error(`Drive delete failed for ${doc.driveFileId}: ${err.message}`);
+      this.logger.error(
+        `Drive delete failed for ${doc.driveFileId}: ${err.message}`,
+      );
       // Continue and remove the metadata anyway — the file is already orphaned in Drive
       // and we don't want the user stuck with a stale row they can't delete.
     }

@@ -36,9 +36,12 @@ export class JsonExportService {
     }
   }
 
-  private async serializeCollection(
-    modelName: string,
-  ): Promise<{ collectionName: string; buffer: Buffer; count: number; sha256: string }> {
+  private async serializeCollection(modelName: string): Promise<{
+    collectionName: string;
+    buffer: Buffer;
+    count: number;
+    sha256: string;
+  }> {
     const model = this.connection.model(modelName);
     const collectionName = model.collection.collectionName;
     const cursor = model.find({}).lean().cursor();
@@ -59,9 +62,17 @@ export class JsonExportService {
     return { collectionName, buffer, count, sha256 };
   }
 
-  async streamJsonArchive(output: Writable, actor: ActorContext): Promise<void> {
+  async streamJsonArchive(
+    output: Writable,
+    actor: ActorContext,
+  ): Promise<void> {
     const archive = archiver('zip', { zlib: { level: 9 } });
-    const collections: Array<{ name: string; count: number; sha256: string; bytes: number }> = [];
+    const collections: Array<{
+      name: string;
+      count: number;
+      sha256: string;
+      bytes: number;
+    }> = [];
 
     archive.on('warning', (err) => {
       this.logger.warn(`archiver warning: ${err.message}`);
@@ -79,9 +90,15 @@ export class JsonExportService {
     const modelNames = [...this.connection.modelNames()].sort();
 
     for (const name of modelNames) {
-      const { collectionName, buffer, count, sha256 } = await this.serializeCollection(name);
+      const { collectionName, buffer, count, sha256 } =
+        await this.serializeCollection(name);
       archive.append(buffer, { name: `${collectionName}.json` });
-      collections.push({ name: collectionName, count, sha256, bytes: buffer.length });
+      collections.push({
+        name: collectionName,
+        count,
+        sha256,
+        bytes: buffer.length,
+      });
     }
 
     const manifest = {
@@ -96,7 +113,9 @@ export class JsonExportService {
       notes:
         'Browsable snapshot of all collections as JSON. Not restorable via this system; use the .archive.gz backup for restore.',
     };
-    archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+    archive.append(JSON.stringify(manifest, null, 2), {
+      name: 'manifest.json',
+    });
 
     await Promise.race([archive.finalize(), archiveErrored]);
     await Promise.race([archiveDone, archiveErrored]);

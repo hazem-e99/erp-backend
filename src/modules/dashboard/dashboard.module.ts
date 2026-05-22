@@ -7,8 +7,14 @@ import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { Client, ClientSchema } from '../clients/schemas/client.schema';
 import { Project, ProjectSchema } from '../projects/schemas/project.schema';
 import { Task, TaskSchema } from '../tasks/schemas/task.schema';
-import { Transaction, TransactionSchema } from '../finance/schemas/transaction.schema';
-import { Attendance, AttendanceSchema } from '../attendance/schemas/attendance.schema';
+import {
+  Transaction,
+  TransactionSchema,
+} from '../finance/schemas/transaction.schema';
+import {
+  Attendance,
+  AttendanceSchema,
+} from '../attendance/schemas/attendance.schema';
 import { Leave, LeaveSchema } from '../leaves/schemas/leave.schema';
 import { Payroll, PayrollSchema } from '../payroll/schemas/payroll.schema';
 

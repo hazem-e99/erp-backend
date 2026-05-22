@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsNumber, IsEnum, Min, Max, Matches } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsEnum,
+  Min,
+  Max,
+  Matches,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 const HH_MM = /^([01]\d|2[0-3]):([0-5]\d)$/;

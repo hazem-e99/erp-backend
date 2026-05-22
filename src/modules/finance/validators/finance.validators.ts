@@ -24,20 +24,26 @@ export function hasTwoDecimalsOrLess(value: number): boolean {
 /**
  * Calculate base amount (in base currency) from original amount and exchange rate.
  * This is the SINGLE SOURCE OF TRUTH for currency conversion.
- * 
+ *
  * @param amount - Original amount in source currency
  * @param exchangeRate - Exchange rate (sourceAmount × rate = baseAmount)
  * @returns Amount converted to base currency, rounded to 2 decimals
- * 
+ *
  * @example
  * calculateBaseAmount(100, 15.5) // 1550.00 (100 USD × 15.5 = 1550 EGP)
  * calculateBaseAmount(99.99, 15.5) // 1549.85 (99.99 × 15.5 = 1549.845 → 1549.85)
  */
-export function calculateBaseAmount(amount: number, exchangeRate: number): number {
+export function calculateBaseAmount(
+  amount: number,
+  exchangeRate: number,
+): number {
   return roundCents(amount * exchangeRate);
 }
 
-export function getMonthDateRange(month: number, year: number): { start: Date; end: Date } {
+export function getMonthDateRange(
+  month: number,
+  year: number,
+): { start: Date; end: Date } {
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
   return { start, end };
@@ -54,7 +60,7 @@ function hasMaxDecimalPlaces(value: number, maxPlaces: number): boolean {
 
 /**
  * Custom validator to check maximum decimal places.
- * 
+ *
  * Usage:
  *   @MaxDecimalPlaces(4)  → allows up to 4 decimal places
  *   @MaxDecimalPlaces(2)  → allows up to 2 decimal places
@@ -127,7 +133,8 @@ export function IsFinancialAmount(
             return `${args.property} must be a valid finite number`;
           }
           if (v <= 0) return `${args.property} must be greater than 0`;
-          if (v > maxVal) return `${args.property} cannot exceed ${maxVal.toLocaleString()}`;
+          if (v > maxVal)
+            return `${args.property} cannot exceed ${maxVal.toLocaleString()}`;
           return `${args.property} must have at most 2 decimal places`;
         },
       },

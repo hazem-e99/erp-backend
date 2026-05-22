@@ -6,7 +6,9 @@ import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
 
 @Injectable()
 export class ClientsService {
-  constructor(@InjectModel(Client.name) private clientModel: Model<ClientDocument>) {}
+  constructor(
+    @InjectModel(Client.name) private clientModel: Model<ClientDocument>,
+  ) {}
 
   async findAll(query: any = {}) {
     const { page = 1, limit = 20, search, status } = query;
@@ -40,7 +42,9 @@ export class ClientsService {
   }
 
   async update(id: string, dto: UpdateClientDto) {
-    const client = await this.clientModel.findByIdAndUpdate(id, dto, { new: true });
+    const client = await this.clientModel.findByIdAndUpdate(id, dto, {
+      new: true,
+    });
     if (!client) throw new NotFoundException('Client not found');
     return client;
   }
@@ -55,7 +59,9 @@ export class ClientsService {
     const total = await this.clientModel.countDocuments();
     const leads = await this.clientModel.countDocuments({ status: 'lead' });
     const active = await this.clientModel.countDocuments({ status: 'active' });
-    const inactive = await this.clientModel.countDocuments({ status: 'inactive' });
+    const inactive = await this.clientModel.countDocuments({
+      status: 'inactive',
+    });
     return { total, leads, active, inactive };
   }
 }

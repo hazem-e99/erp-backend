@@ -1,6 +1,16 @@
-import { IsEnum, IsOptional, IsString, IsDateString, IsMongoId } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsMongoId,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { AuditAction, AuditEntity, AuditStatus } from '../schemas/audit-log.schema';
+import {
+  AuditAction,
+  AuditEntity,
+  AuditStatus,
+} from '../schemas/audit-log.schema';
 
 export class CreateAuditLogDto {
   @IsMongoId()

@@ -4,7 +4,10 @@ import { RemindersController } from './reminders.controller';
 import { RemindersService } from './reminders.service';
 import { ReminderSchedulerService } from './reminder-scheduler.service';
 import { Reminder, ReminderSchema } from './schemas/reminder.schema';
-import { PayrollReminder, PayrollReminderSchema } from './schemas/payroll-reminder.schema';
+import {
+  PayrollReminder,
+  PayrollReminderSchema,
+} from './schemas/payroll-reminder.schema';
 import { EmailModule } from '../email/email.module';
 
 @Module({

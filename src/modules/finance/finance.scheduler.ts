@@ -6,7 +6,11 @@ import { SubscriptionsService } from './services/subscriptions.service';
 import { FinanceGateway } from './finance.gateway';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Subscription, SubscriptionDocument, SubscriptionStatus } from './schemas/subscription.schema';
+import {
+  Subscription,
+  SubscriptionDocument,
+  SubscriptionStatus,
+} from './schemas/subscription.schema';
 
 @Injectable()
 export class FinanceScheduler {
@@ -17,7 +21,8 @@ export class FinanceScheduler {
     private readonly installmentsService: InstallmentsService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly gateway: FinanceGateway,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<SubscriptionDocument>,
   ) {}
 
   /** Revenue recognition — runs daily at 00:05 */

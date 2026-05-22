@@ -18,7 +18,7 @@ import { Role, RoleSchema } from '../roles/schemas/role.schema';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET', 'dev-secret-key-change-me'),
-        signOptions: { expiresIn: config.get('JWT_EXPIRES_IN', '7d') as any },
+        signOptions: { expiresIn: config.get('JWT_EXPIRES_IN', '7d') },
       }),
     }),
     MongooseModule.forFeature([

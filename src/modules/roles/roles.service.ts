@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Role, RoleDocument, ALL_PERMISSIONS } from './schemas/role.schema';
@@ -75,9 +79,12 @@ export class RolesService {
         name: 'Employee',
         description: 'Basic employee access',
         permissions: [
-          'tasks:read', 'tasks:update',
-          'attendance:read', 'attendance:create',
-          'leaves:read', 'leaves:create',
+          'tasks:read',
+          'tasks:update',
+          'attendance:read',
+          'attendance:create',
+          'leaves:read',
+          'leaves:create',
           'dashboard:employee',
         ],
         isSystem: true,
@@ -90,15 +97,26 @@ export class RolesService {
         name: 'Manager',
         description: 'Manager access with team management',
         permissions: [
-          'users:read', 'employees:read',
-          'clients:read', 'clients:create', 'clients:update',
-          'projects:read', 'projects:create', 'projects:update',
-          'tasks:read', 'tasks:create', 'tasks:update',
-          'attendance:read', 'attendance:create',
-          'leaves:read', 'leaves:create', 'leaves:approve',
+          'users:read',
+          'employees:read',
+          'clients:read',
+          'clients:create',
+          'clients:update',
+          'projects:read',
+          'projects:create',
+          'projects:update',
+          'tasks:read',
+          'tasks:create',
+          'tasks:update',
+          'attendance:read',
+          'attendance:create',
+          'leaves:read',
+          'leaves:create',
+          'leaves:approve',
           'payroll:read',
           'finance:read',
-          'dashboard:admin', 'dashboard:employee',
+          'dashboard:admin',
+          'dashboard:employee',
         ],
         isSystem: true,
       });
@@ -108,14 +126,21 @@ export class RolesService {
     if (!hrExists) {
       await this.roleModel.create({
         name: 'HR',
-        description: 'HR Manager with attendance, leave, analytics & export access',
+        description:
+          'HR Manager with attendance, leave, analytics & export access',
         permissions: [
           'employees:read',
           'attendance:read',
-          'leaves:read', 'leaves:approve',
-          'hr:dashboard', 'hr:attendance', 'hr:leaves', 'hr:reports',
-          'export:data', 'import:data',
-          'dashboard:admin', 'dashboard:employee',
+          'leaves:read',
+          'leaves:approve',
+          'hr:dashboard',
+          'hr:attendance',
+          'hr:leaves',
+          'hr:reports',
+          'export:data',
+          'import:data',
+          'dashboard:admin',
+          'dashboard:employee',
           'announcements:send',
         ],
         isSystem: true,

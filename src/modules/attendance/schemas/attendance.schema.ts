@@ -26,7 +26,10 @@ export class Attendance {
   @Prop({ default: 0 })
   overtimeMinutes: number;
 
-  @Prop({ default: 'present', enum: ['present', 'absent', 'half-day', 'holiday', 'weekend'] })
+  @Prop({
+    default: 'present',
+    enum: ['present', 'absent', 'half-day', 'holiday', 'weekend'],
+  })
   status: string;
 
   @Prop({ default: null })

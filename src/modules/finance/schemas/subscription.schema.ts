@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../constants/currency.constants';
 
 export type SubscriptionDocument = Subscription & Document;
 
@@ -44,7 +47,8 @@ export class SubscriptionFile {
   uploadedBy!: string | null;
 }
 
-export const SubscriptionFileSchema = SchemaFactory.createForClass(SubscriptionFile);
+export const SubscriptionFileSchema =
+  SchemaFactory.createForClass(SubscriptionFile);
 
 @Schema({ timestamps: true })
 export class Subscription {
@@ -75,7 +79,10 @@ export class Subscription {
   @Prop({ type: Date, required: true })
   endDate!: Date;
 
-  @Prop({ default: SubscriptionStatus.PENDING, enum: Object.values(SubscriptionStatus) })
+  @Prop({
+    default: SubscriptionStatus.PENDING,
+    enum: Object.values(SubscriptionStatus),
+  })
   status!: string;
 
   @Prop({ default: InstallmentPlan.FULL, enum: Object.values(InstallmentPlan) })

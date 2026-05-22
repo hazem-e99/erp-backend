@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { RolesService } from './roles.service';
@@ -45,7 +54,10 @@ export class RolesController {
   @Put(':id')
   @RequirePermissions('roles:update')
   @ApiOperation({ summary: 'Update role' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateRoleDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateRoleDto,
+  ) {
     return this.rolesService.update(id, dto);
   }
 

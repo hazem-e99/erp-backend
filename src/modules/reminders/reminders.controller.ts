@@ -14,7 +14,10 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { RemindersService } from './reminders.service';
 import { EmailService } from '../email/email.service';
 import { CreateReminderDto, UpdateReminderDto } from './dto/reminder.dto';
-import { UpsertAllPayrollReminderDto, UpsertInternPayrollReminderDto } from './dto/payroll-reminder.dto';
+import {
+  UpsertAllPayrollReminderDto,
+  UpsertInternPayrollReminderDto,
+} from './dto/payroll-reminder.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -31,7 +34,10 @@ export class RemindersController {
   @Post()
   @RequirePermissions('reminders:create')
   @ApiOperation({ summary: 'Create a new reminder' })
-  create(@Body() createReminderDto: CreateReminderDto, @CurrentUser('userId') userId: string) {
+  create(
+    @Body() createReminderDto: CreateReminderDto,
+    @CurrentUser('userId') userId: string,
+  ) {
     return this.remindersService.create(createReminderDto, userId);
   }
 
@@ -51,7 +57,9 @@ export class RemindersController {
 
   @Post('payroll/intern')
   @RequirePermissions('reminders:update')
-  @ApiOperation({ summary: 'Set monthly reminder day for an internship employee' })
+  @ApiOperation({
+    summary: 'Set monthly reminder day for an internship employee',
+  })
   upsertInternPayrollReminder(@Body() dto: UpsertInternPayrollReminderDto) {
     return this.remindersService.upsertInternPayrollReminder(dto);
   }
@@ -59,7 +67,9 @@ export class RemindersController {
   @Delete('payroll/intern/:employeeId')
   @RequirePermissions('reminders:delete')
   @ApiOperation({ summary: 'Delete internship payroll reminder' })
-  deleteInternPayrollReminder(@Param('employeeId', ParseObjectIdPipe) employeeId: string) {
+  deleteInternPayrollReminder(
+    @Param('employeeId', ParseObjectIdPipe) employeeId: string,
+  ) {
     return this.remindersService.deleteInternPayrollReminder(employeeId);
   }
 
@@ -101,7 +111,7 @@ export class RemindersController {
     const testEmailTo = process.env.EMAIL_USER ?? '';
     try {
       console.log('📧 Testing email sending...');
-      
+
       // Send a test email
       await this.emailService.sendReminderEmail(
         testEmailTo,
@@ -112,14 +122,14 @@ export class RemindersController {
           amount: 1000,
           reminderDate: new Date(),
           period: 'sameday',
-        }
+        },
       );
-      
+
       console.log(`✅ Test email sent successfully to ${testEmailTo}`);
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: `Test email sent to ${testEmailTo}`,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     } catch (error) {
       console.error('❌ Failed to send test email:', error);

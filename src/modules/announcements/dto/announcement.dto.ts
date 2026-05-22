@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsArray, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsArray,
+  IsEnum,
+  IsOptional,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAnnouncementDto {
@@ -7,7 +13,9 @@ export class CreateAnnouncementDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ example: 'The office will be closed on Friday for maintenance.' })
+  @ApiProperty({
+    example: 'The office will be closed on Friday for maintenance.',
+  })
   @IsString()
   @IsNotEmpty()
   message: string;

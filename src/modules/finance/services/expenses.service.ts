@@ -7,7 +7,10 @@ import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { UpdateExpenseDto } from '../dto/update-expense.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
-import { calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
+import {
+  calculateBaseAmount,
+  getMonthDateRange,
+} from '../validators/finance.validators';
 
 @Injectable()
 export class ExpensesService {
@@ -23,14 +26,19 @@ export class ExpensesService {
     const absolutePath = join(process.cwd(), attachmentUrl);
     fs.unlink(absolutePath, (err) => {
       if (err && err.code !== 'ENOENT') {
-        this.logger.warn(`Failed to delete attachment ${absolutePath}: ${err.message}`);
+        this.logger.warn(
+          `Failed to delete attachment ${absolutePath}: ${err.message}`,
+        );
       }
     });
   }
 
-  async create(dto: CreateExpenseDto, attachmentUrl?: string): Promise<ExpenseDocument> {
+  async create(
+    dto: CreateExpenseDto,
+    attachmentUrl?: string,
+  ): Promise<ExpenseDocument> {
     const baseAmount = calculateBaseAmount(dto.amount, dto.exchangeRate);
-    
+
     const expense = new this.expenseModel({
       amount: dto.amount,
       currency: dto.currency,
@@ -61,7 +69,12 @@ export class ExpensesService {
     }
 
     const [data, total] = await Promise.all([
-      this.expenseModel.find(filter).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+      this.expenseModel
+        .find(filter)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       this.expenseModel.countDocuments(filter),
     ]);
     return { data, total, page, limit };
@@ -90,7 +103,10 @@ export class ExpensesService {
 
     // Recalculate baseAmount whenever amount or exchangeRate changes
     if (dto.amount !== undefined || dto.exchangeRate !== undefined) {
-      expense.baseAmount = calculateBaseAmount(expense.amount, expense.exchangeRate);
+      expense.baseAmount = calculateBaseAmount(
+        expense.amount,
+        expense.exchangeRate,
+      );
     }
 
     if (newAttachmentUrl) {
@@ -100,7 +116,11 @@ export class ExpensesService {
     await expense.save();
 
     // Remove the old attachment from disk only after a successful save.
-    if (newAttachmentUrl && previousAttachment && previousAttachment !== newAttachmentUrl) {
+    if (
+      newAttachmentUrl &&
+      previousAttachment &&
+      previousAttachment !== newAttachmentUrl
+    ) {
       this.removeUploadedFile(previousAttachment);
     }
 
@@ -136,12 +156,20 @@ export class ExpensesService {
     }
     return this.expenseModel.aggregate([
       { $match: match },
-      { $group: { _id: '$category', total: { $sum: '$baseAmount' }, count: { $sum: 1 } } }, // Use baseAmount
+      {
+        $group: {
+          _id: '$category',
+          total: { $sum: '$baseAmount' },
+          count: { $sum: 1 },
+        },
+      }, // Use baseAmount
       { $sort: { total: -1 } },
     ]);
   }
 
-  async getMonthlyChart(year: number): Promise<Array<{ month: number; total: number }>> {
+  async getMonthlyChart(
+    year: number,
+  ): Promise<Array<{ month: number; total: number }>> {
     const result = await this.expenseModel.aggregate([
       {
         $match: {
@@ -162,6 +190,9 @@ export class ExpensesService {
     const chart: Record<number, number> = {};
     for (let m = 1; m <= 12; m++) chart[m] = 0;
     for (const r of result) chart[r._id.month] += r.total;
-    return Object.entries(chart).map(([month, total]) => ({ month: Number(month), total }));
+    return Object.entries(chart).map(([month, total]) => ({
+      month: Number(month),
+      total,
+    }));
   }
 }

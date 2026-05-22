@@ -14,7 +14,10 @@ export class Notification {
   @Prop({ required: true })
   message: string;
 
-  @Prop({ default: 'announcement', enum: ['announcement', 'system', 'task', 'leave'] })
+  @Prop({
+    default: 'announcement',
+    enum: ['announcement', 'system', 'task', 'leave'],
+  })
   type: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Announcement', default: null })

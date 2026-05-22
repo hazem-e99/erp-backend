@@ -1,6 +1,17 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Query,
-  UseGuards, UseInterceptors, UploadedFile, HttpCode, HttpStatus,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  HttpCode,
+  HttpStatus,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -52,7 +63,9 @@ export class ExpensesController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     ensureWithinSize(file);
-    const attachmentUrl = file ? `/uploads/expenses/${file.filename}` : undefined;
+    const attachmentUrl = file
+      ? `/uploads/expenses/${file.filename}`
+      : undefined;
     return this.expensesService.create(dto, attachmentUrl);
   }
 
@@ -70,7 +83,9 @@ export class ExpensesController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     ensureWithinSize(file);
-    const attachmentUrl = file ? `/uploads/expenses/${file.filename}` : undefined;
+    const attachmentUrl = file
+      ? `/uploads/expenses/${file.filename}`
+      : undefined;
     return this.expensesService.update(id, dto, attachmentUrl);
   }
 
@@ -82,7 +97,10 @@ export class ExpensesController {
 
   @Get('by-category')
   @RequirePermissions('finance:read')
-  getByCategory(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+  getByCategory(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     return this.expensesService.getByCategory(
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,

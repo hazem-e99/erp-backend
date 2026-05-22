@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Task, TaskDocument } from './schemas/task.schema';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 
 @Injectable()
@@ -13,7 +16,15 @@ export class TasksService {
   ) {}
 
   async findAll(query: any = {}) {
-    const { page = 1, limit = 20, search, status, priority, assignedTo, projectId } = query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      status,
+      priority,
+      assignedTo,
+      projectId,
+    } = query;
     const filter: any = {};
     if (search) {
       filter.title = { $regex: search, $options: 'i' };
@@ -26,7 +37,10 @@ export class TasksService {
     const total = await this.taskModel.countDocuments(filter);
     const tasks = await this.taskModel
       .find(filter)
-      .populate({ path: 'assignedTo', populate: { path: 'userId', select: 'name email avatar' } })
+      .populate({
+        path: 'assignedTo',
+        populate: { path: 'userId', select: 'name email avatar' },
+      })
       .populate('projectId', 'name')
       .populate('createdBy', 'name email')
       .skip((page - 1) * limit)
@@ -38,7 +52,10 @@ export class TasksService {
   async findById(id: string) {
     const task = await this.taskModel
       .findById(id)
-      .populate({ path: 'assignedTo', populate: { path: 'userId', select: 'name email avatar' } })
+      .populate({
+        path: 'assignedTo',
+        populate: { path: 'userId', select: 'name email avatar' },
+      })
       .populate('projectId', 'name')
       .populate('createdBy', 'name email');
     if (!task) throw new NotFoundException('Task not found');
@@ -88,7 +105,10 @@ export class TasksService {
   async update(id: string, dto: UpdateTaskDto) {
     const task = await this.taskModel
       .findByIdAndUpdate(id, dto, { new: true })
-      .populate({ path: 'assignedTo', populate: { path: 'userId', select: 'name email' } })
+      .populate({
+        path: 'assignedTo',
+        populate: { path: 'userId', select: 'name email' },
+      })
       .populate('projectId', 'name');
     if (!task) throw new NotFoundException('Task not found');
     return task;
@@ -103,9 +123,13 @@ export class TasksService {
   async getStats() {
     const total = await this.taskModel.countDocuments();
     const todo = await this.taskModel.countDocuments({ status: 'todo' });
-    const inProgress = await this.taskModel.countDocuments({ status: 'in-progress' });
+    const inProgress = await this.taskModel.countDocuments({
+      status: 'in-progress',
+    });
     const review = await this.taskModel.countDocuments({ status: 'review' });
-    const completed = await this.taskModel.countDocuments({ status: 'completed' });
+    const completed = await this.taskModel.countDocuments({
+      status: 'completed',
+    });
     const overdue = await this.taskModel.countDocuments({
       deadline: { $lt: new Date() },
       status: { $ne: 'completed' },

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
@@ -45,7 +55,10 @@ export class ProjectsController {
   @Put(':id')
   @RequirePermissions('projects:update')
   @ApiOperation({ summary: 'Update project' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateProjectDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateProjectDto,
+  ) {
     return this.projectsService.update(id, dto);
   }
 

@@ -1,4 +1,16 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString, IsEmail, IsArray, IsEnum, MinLength, Min, Max } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsDateString,
+  IsEmail,
+  IsArray,
+  IsEnum,
+  MinLength,
+  Min,
+  Max,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SupportedCurrency } from '../../finance/constants/currency.constants';
 import { MaxDecimalPlaces } from '../../finance/validators/finance.validators';
@@ -28,12 +40,18 @@ export class CreateEmployeeDto {
   @IsNumber()
   age?: number;
 
-  @ApiPropertyOptional({ example: 'EGP', enum: ['EGP', 'USD', 'SAR', 'EUR', 'GBP', 'AED'] })
+  @ApiPropertyOptional({
+    example: 'EGP',
+    enum: ['EGP', 'USD', 'SAR', 'EUR', 'GBP', 'AED'],
+  })
   @IsOptional()
   @IsEnum(SupportedCurrency)
   currency?: SupportedCurrency;
 
-  @ApiPropertyOptional({ example: 1, description: 'Exchange rate to base currency (EGP)' })
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Exchange rate to base currency (EGP)',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0.0001)
@@ -93,7 +111,9 @@ export class CreateEmployeeDto {
   @IsString({ each: true })
   contractTypes?: string[];
 
-  @ApiPropertyOptional({ enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  @ApiPropertyOptional({
+    enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'],
+  })
   @IsOptional()
   @IsEnum(['mobile_wallet', 'visa', 'bank_account', 'instapay'])
   paymentMethodType?: string;
@@ -187,7 +207,9 @@ export class UpdateEmployeeDto {
   @IsNumber()
   annualLeaves?: number;
 
-  @ApiPropertyOptional({ enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  @ApiPropertyOptional({
+    enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'],
+  })
   @IsOptional()
   @IsEnum(['mobile_wallet', 'visa', 'bank_account', 'instapay'])
   paymentMethodType?: string;

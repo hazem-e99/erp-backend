@@ -4,7 +4,10 @@ import { MulterModule } from '@nestjs/platform-express';
 import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 
-import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from './schemas/subscription.schema';
 import { Installment, InstallmentSchema } from './schemas/installment.schema';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 import { Revenue, RevenueSchema } from './schemas/revenue.schema';

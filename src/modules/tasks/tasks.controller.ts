@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
@@ -7,7 +17,6 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
-
 
 @ApiTags('Tasks')
 @ApiBearerAuth()
@@ -25,14 +34,12 @@ export class TasksController {
   @Get()
   @RequirePermissions('tasks:read')
   @ApiOperation({ summary: 'Get all tasks (managers/admins only)' })
-  findAll(
-    @CurrentUser() user: any,
-    @Query() query: any,
-  ) {
+  findAll(@CurrentUser() user: any, @Query() query: any) {
     // If user has tasks:manage - see all. Otherwise only their own tasks.
-    const canSeeAll = user?.role?.permissions?.includes('tasks:manage') ||
-                      user?.role?.permissions?.includes('tasks:read') &&
-                      user?.role?.permissions?.includes('dashboard:admin');
+    const canSeeAll =
+      user?.role?.permissions?.includes('tasks:manage') ||
+      (user?.role?.permissions?.includes('tasks:read') &&
+        user?.role?.permissions?.includes('dashboard:admin'));
     if (!canSeeAll) {
       return this.tasksService.findMyTasks(user._id, query);
     }
@@ -49,7 +56,10 @@ export class TasksController {
   @Get('employee/:employeeId')
   @RequirePermissions('tasks:read')
   @ApiOperation({ summary: 'Get tasks by employee' })
-  findByEmployee(@Param('employeeId', ParseObjectIdPipe) employeeId: string, @Query() query: any) {
+  findByEmployee(
+    @Param('employeeId', ParseObjectIdPipe) employeeId: string,
+    @Query() query: any,
+  ) {
     return this.tasksService.findByEmployee(employeeId, query);
   }
 
@@ -70,7 +80,10 @@ export class TasksController {
   @Put(':id')
   @RequirePermissions('tasks:update')
   @ApiOperation({ summary: 'Update task' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateTaskDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateTaskDto,
+  ) {
     return this.tasksService.update(id, dto);
   }
 

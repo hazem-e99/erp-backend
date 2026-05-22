@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
+import {
+  Installment,
+  InstallmentDocument,
+  InstallmentStatus,
+} from '../schemas/installment.schema';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { getMonthDateRange } from '../validators/finance.validators';
@@ -9,7 +13,8 @@ import { getMonthDateRange } from '../validators/finance.validators';
 @Injectable()
 export class InstallmentsService {
   constructor(
-    @InjectModel(Installment.name) private installmentModel: Model<InstallmentDocument>,
+    @InjectModel(Installment.name)
+    private installmentModel: Model<InstallmentDocument>,
     private readonly gateway: FinanceGateway,
   ) {}
 
@@ -27,12 +32,20 @@ export class InstallmentsService {
     } else {
       if (query.startDate) filter.dueDate = { $gte: new Date(query.startDate) };
       if (query.endDate) {
-        filter.dueDate = { ...(filter.dueDate || {}), $lte: new Date(query.endDate) };
+        filter.dueDate = {
+          ...(filter.dueDate || {}),
+          $lte: new Date(query.endDate),
+        };
       }
     }
 
     const [data, total] = await Promise.all([
-      this.installmentModel.find(filter).sort({ dueDate: 1 }).skip(skip).limit(limit).lean(),
+      this.installmentModel
+        .find(filter)
+        .sort({ dueDate: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       this.installmentModel.countDocuments(filter),
     ]);
     return { data, total, page, limit };
@@ -90,16 +103,26 @@ export class InstallmentsService {
   }
 
   async markReminderSent(id: string): Promise<void> {
-    await this.installmentModel.findByIdAndUpdate(id, { $set: { reminderSent: true } });
+    await this.installmentModel.findByIdAndUpdate(id, {
+      $set: { reminderSent: true },
+    });
   }
 
   async getOverdueCount(): Promise<number> {
-    return this.installmentModel.countDocuments({ status: InstallmentStatus.OVERDUE });
+    return this.installmentModel.countDocuments({
+      status: InstallmentStatus.OVERDUE,
+    });
   }
 
   async getOutstandingTotal(): Promise<number> {
     const result = await this.installmentModel.aggregate([
-      { $match: { status: { $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE] } } },
+      {
+        $match: {
+          status: {
+            $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE],
+          },
+        },
+      },
       {
         $group: {
           _id: null,

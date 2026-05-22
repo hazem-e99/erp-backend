@@ -2,8 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as ExcelJS from 'exceljs';
-import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
-import { Attendance, AttendanceDocument } from '../attendance/schemas/attendance.schema';
+import {
+  Employee,
+  EmployeeDocument,
+} from '../employees/schemas/employee.schema';
+import {
+  Attendance,
+  AttendanceDocument,
+} from '../attendance/schemas/attendance.schema';
 import { Leave, LeaveDocument } from '../leaves/schemas/leave.schema';
 import { Project, ProjectDocument } from '../projects/schemas/project.schema';
 import { Task, TaskDocument } from '../tasks/schemas/task.schema';
@@ -12,7 +18,8 @@ import { Task, TaskDocument } from '../tasks/schemas/task.schema';
 export class ExportService {
   constructor(
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
-    @InjectModel(Attendance.name) private attendanceModel: Model<AttendanceDocument>,
+    @InjectModel(Attendance.name)
+    private attendanceModel: Model<AttendanceDocument>,
     @InjectModel(Leave.name) private leaveModel: Model<LeaveDocument>,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(Task.name) private taskModel: Model<TaskDocument>,
@@ -20,13 +27,19 @@ export class ExportService {
 
   private styleSheet(ws: ExcelJS.Worksheet) {
     // Style header row
-    ws.getRow(1).eachCell(cell => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+    ws.getRow(1).eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF2563EB' },
+      };
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.border = {
-        top: { style: 'thin' }, bottom: { style: 'thin' },
-        left: { style: 'thin' }, right: { style: 'thin' },
+        top: { style: 'thin' },
+        bottom: { style: 'thin' },
+        left: { style: 'thin' },
+        right: { style: 'thin' },
       };
     });
     ws.getRow(1).height = 28;
@@ -38,7 +51,9 @@ export class ExportService {
     if (department) filter.$or = [{ department }, { departments: department }];
     if (status) filter.status = status;
 
-    const employees = await this.employeeModel.find(filter).populate({ path: 'userId', select: 'name email' });
+    const employees = await this.employeeModel
+      .find(filter)
+      .populate({ path: 'userId', select: 'name email' });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Employees');
@@ -64,7 +79,9 @@ export class ExportService {
         position: e.positions?.join(', ') || 'N/A',
         salary: e.baseSalary,
         status: e.status,
-        joinDate: e.dateOfJoining ? new Date(e.dateOfJoining).toLocaleDateString() : '',
+        joinDate: e.dateOfJoining
+          ? new Date(e.dateOfJoining).toLocaleDateString()
+          : '',
         whatsapp: e.whatsappNumber || '',
       });
     }
@@ -82,7 +99,8 @@ export class ExportService {
       if (endDate) filter.date.$lte = new Date(endDate);
     }
 
-    const records = await this.attendanceModel.find(filter)
+    const records = await this.attendanceModel
+      .find(filter)
       .populate({ path: 'employeeId', select: 'name employeeId department' })
       .sort({ date: -1 });
 
@@ -129,7 +147,8 @@ export class ExportService {
       if (endDate) filter.startDate.$lte = new Date(endDate);
     }
 
-    const leaves = await this.leaveModel.find(filter)
+    const leaves = await this.leaveModel
+      .find(filter)
       .populate({ path: 'employeeId', select: 'name employeeId' })
       .populate('approvedBy', 'name')
       .sort({ createdAt: -1 });
@@ -170,7 +189,8 @@ export class ExportService {
     const filter: any = {};
     if (status) filter.status = status;
 
-    const projects = await this.projectModel.find(filter)
+    const projects = await this.projectModel
+      .find(filter)
       .populate('clientId', 'name')
       .sort({ createdAt: -1 });
 
@@ -216,7 +236,8 @@ export class ExportService {
       if (endDate) filter.deadline.$lte = new Date(endDate);
     }
 
-    const tasks = await this.taskModel.find(filter)
+    const tasks = await this.taskModel
+      .find(filter)
       .populate('assignedTo', 'name')
       .populate('projectId', 'name')
       .sort({ createdAt: -1 });

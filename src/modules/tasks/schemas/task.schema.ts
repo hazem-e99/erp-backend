@@ -20,7 +20,10 @@ export class Task {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
   createdBy: Types.ObjectId;
 
-  @Prop({ default: 'todo', enum: ['todo', 'in-progress', 'review', 'completed'] })
+  @Prop({
+    default: 'todo',
+    enum: ['todo', 'in-progress', 'review', 'completed'],
+  })
   status: string;
 
   @Prop({ default: 'medium', enum: ['low', 'medium', 'high', 'urgent'] })

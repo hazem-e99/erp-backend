@@ -700,9 +700,8 @@ export class PayrollService {
       );
     }
 
-    const { total, count, expenseExists } = await this.syncLinkedExpense(
-      expenseId,
-    );
+    const { total, count, expenseExists } =
+      await this.syncLinkedExpense(expenseId);
     if (!expenseExists) {
       throw new NotFoundException(
         'Linked expense no longer exists — payroll references have been cleaned',

@@ -1,8 +1,24 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
-import { CreateEmployeeDto, UpdateEmployeeDto, UpdateProfileDto, ChangePasswordDto, AdminResetPasswordDto } from './dto/employee.dto';
+import {
+  CreateEmployeeDto,
+  UpdateEmployeeDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+  AdminResetPasswordDto,
+} from './dto/employee.dto';
 import { CreateEmployeeSettlementDto } from './dto/settlement.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -24,13 +40,19 @@ export class EmployeesController {
 
   @Put('me/profile')
   @ApiOperation({ summary: 'Update own profile (limited fields)' })
-  updateOwnProfile(@CurrentUser('_id') userId: string, @Body() dto: UpdateProfileDto) {
+  updateOwnProfile(
+    @CurrentUser('_id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
     return this.employeesService.updateOwnProfile(userId, dto);
   }
 
   @Post('me/change-password')
   @ApiOperation({ summary: 'Change own password' })
-  changePassword(@CurrentUser('_id') userId: string, @Body() dto: ChangePasswordDto) {
+  changePassword(
+    @CurrentUser('_id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
     return this.employeesService.changePassword(userId, dto);
   }
 
@@ -68,14 +90,20 @@ export class EmployeesController {
   @Put(':id')
   @RequirePermissions('employees:update')
   @ApiOperation({ summary: 'Update employee (admin)' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdateEmployeeDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateEmployeeDto,
+  ) {
     return this.employeesService.update(id, dto);
   }
 
   @Post(':id/reset-password')
   @RequirePermissions('employees:update')
   @ApiOperation({ summary: 'Admin reset employee password' })
-  resetPassword(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: AdminResetPasswordDto) {
+  resetPassword(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: AdminResetPasswordDto,
+  ) {
     return this.employeesService.adminResetPassword(id, dto);
   }
 
@@ -98,7 +126,9 @@ export class EmployeesController {
 
   @Delete(':id/permanent')
   @RequirePermissions('employees:delete')
-  @ApiOperation({ summary: 'Permanently delete employee and linked user account' })
+  @ApiOperation({
+    summary: 'Permanently delete employee and linked user account',
+  })
   deletePermanently(
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser('_id') currentUserId: string,

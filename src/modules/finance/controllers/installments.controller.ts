@@ -1,4 +1,13 @@
-import { Controller, Get, Delete, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Delete,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../../common/decorators/permissions.decorator';
@@ -20,18 +29,24 @@ export class InstallmentsController {
   @Get('outstanding')
   @RequirePermissions('finance:read')
   getOutstandingTotal() {
-    return this.installmentsService.getOutstandingTotal().then((total) => ({ total }));
+    return this.installmentsService
+      .getOutstandingTotal()
+      .then((total) => ({ total }));
   }
 
   @Get('overdue-count')
   @RequirePermissions('finance:read')
   getOverdueCount() {
-    return this.installmentsService.getOverdueCount().then((count) => ({ count }));
+    return this.installmentsService
+      .getOverdueCount()
+      .then((count) => ({ count }));
   }
 
   @Get('by-subscription/:subscriptionId')
   @RequirePermissions('finance:read')
-  findBySubscription(@Param('subscriptionId', ParseObjectIdPipe) subscriptionId: string) {
+  findBySubscription(
+    @Param('subscriptionId', ParseObjectIdPipe) subscriptionId: string,
+  ) {
     return this.installmentsService.findBySubscription(subscriptionId);
   }
 

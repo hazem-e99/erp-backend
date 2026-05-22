@@ -29,7 +29,8 @@ async function bootstrap() {
   );
 
   // CORS — support explicit allow-list and wildcard from env
-  const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
+  const rawCorsOrigin =
+    process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
   const corsOrigins = rawCorsOrigin
     .split(',')
     .map((o) => o.trim())

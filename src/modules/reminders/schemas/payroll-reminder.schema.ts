@@ -15,6 +15,7 @@ export class PayrollReminder {
   dayOfMonth: number;
 }
 
-export const PayrollReminderSchema = SchemaFactory.createForClass(PayrollReminder);
+export const PayrollReminderSchema =
+  SchemaFactory.createForClass(PayrollReminder);
 
 PayrollReminderSchema.index({ type: 1, employeeId: 1 }, { unique: true });

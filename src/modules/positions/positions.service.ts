@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Position, PositionDocument } from './schemas/position.schema';
@@ -32,7 +36,9 @@ export class PositionsService {
   }
 
   async update(id: string, dto: UpdatePositionDto): Promise<Position> {
-    const position = await this.positionModel.findByIdAndUpdate(id, dto, { new: true });
+    const position = await this.positionModel.findByIdAndUpdate(id, dto, {
+      new: true,
+    });
     if (!position) {
       throw new NotFoundException('Position not found');
     }

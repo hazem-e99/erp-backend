@@ -12,8 +12,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BackupService } from './backup.service';
-import { BackupSource, BackupRecord, BackupRecordDocument, BackupStatus } from './schemas/backup-record.schema';
-import { BackupConfig, BackupConfigDocument } from './schemas/backup-config.schema';
+import {
+  BackupSource,
+  BackupRecord,
+  BackupRecordDocument,
+  BackupStatus,
+} from './schemas/backup-record.schema';
+import {
+  BackupConfig,
+  BackupConfigDocument,
+} from './schemas/backup-config.schema';
 import { BACKUP_STORAGE } from './storage/storage.interface';
 import type { IBackupStorage } from './storage/storage.interface';
 import { Inject } from '@nestjs/common';
@@ -42,17 +50,23 @@ export class BackupScheduler {
   }
 
   /** Core scheduled run — idempotent within MIN_INTERVAL_MS. */
-  async runIfDue(triggerSource: string): Promise<{ ran: boolean; reason?: string; recordId?: string }> {
+  async runIfDue(
+    triggerSource: string,
+  ): Promise<{ ran: boolean; reason?: string; recordId?: string }> {
     const cfg = await this.backupConfigModel.findOne().exec();
     const last = cfg?.lastScheduledRunAt?.getTime?.() ?? 0;
     const now = Date.now();
     if (now - last < MIN_INTERVAL_MS) {
-      this.logger.log(`Skipping scheduled backup — last run ${Math.round((now - last) / 60000)}m ago`);
+      this.logger.log(
+        `Skipping scheduled backup — last run ${Math.round((now - last) / 60000)}m ago`,
+      );
       return { ran: false, reason: 'too-soon' };
     }
 
     if (!(await this.storage.isConfigured())) {
-      this.logger.warn(`Scheduled backup skipped — storage driver '${this.storage.driverName()}' not configured`);
+      this.logger.warn(
+        `Scheduled backup skipped — storage driver '${this.storage.driverName()}' not configured`,
+      );
       return { ran: false, reason: 'storage-not-configured' };
     }
 
@@ -64,7 +78,10 @@ export class BackupScheduler {
     );
 
     try {
-      const record = await this.backupService.runExport(BackupSource.SCHEDULED, null);
+      const record = await this.backupService.runExport(
+        BackupSource.SCHEDULED,
+        null,
+      );
       await this.runRetentionPrune();
       return { ran: true, recordId: record._id?.toString() };
     } catch (err: any) {
@@ -88,7 +105,9 @@ export class BackupScheduler {
       .exec();
 
     const keep = new Set<string>();
-    const dailyIds = records.slice(0, daily).map((r) => r._id?.toString() ?? '');
+    const dailyIds = records
+      .slice(0, daily)
+      .map((r) => r._id?.toString() ?? '');
     dailyIds.forEach((id) => keep.add(id));
 
     const weeklyBuckets = new Map<string, string>();
@@ -96,7 +115,8 @@ export class BackupScheduler {
       const d = new Date((r as any).createdAt as Date);
       // Bucket by ISO week (UTC)
       const week = this.isoWeek(d);
-      if (!weeklyBuckets.has(week)) weeklyBuckets.set(week, r._id?.toString() ?? '');
+      if (!weeklyBuckets.has(week))
+        weeklyBuckets.set(week, r._id?.toString() ?? '');
       if (weeklyBuckets.size >= weekly) break;
     }
     weeklyBuckets.forEach((id) => keep.add(id));
@@ -105,7 +125,8 @@ export class BackupScheduler {
     for (const r of records) {
       const d = new Date((r as any).createdAt as Date);
       const month = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
-      if (!monthlyBuckets.has(month)) monthlyBuckets.set(month, r._id?.toString() ?? '');
+      if (!monthlyBuckets.has(month))
+        monthlyBuckets.set(month, r._id?.toString() ?? '');
       if (monthlyBuckets.size >= monthly) break;
     }
     monthlyBuckets.forEach((id) => keep.add(id));
@@ -118,19 +139,27 @@ export class BackupScheduler {
         await this.backupRecordModel.deleteOne({ _id: r._id }).exec();
         deleted++;
       } catch (err: any) {
-        this.logger.warn(`Retention prune failed for ${r.filename}: ${err?.message}`);
+        this.logger.warn(
+          `Retention prune failed for ${r.filename}: ${err?.message}`,
+        );
       }
     }
-    this.logger.log(`Retention prune: deleted ${deleted}, kept ${records.length - deleted}`);
+    this.logger.log(
+      `Retention prune: deleted ${deleted}, kept ${records.length - deleted}`,
+    );
     return { deleted };
   }
 
   private isoWeek(d: Date): string {
-    const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const t = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+    );
     const day = t.getUTCDay() || 7;
     t.setUTCDate(t.getUTCDate() + 4 - day);
     const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-    const week = Math.ceil((((t.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    const week = Math.ceil(
+      ((t.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+    );
     return `${t.getUTCFullYear()}-W${week}`;
   }
 }
@@ -150,11 +179,15 @@ export class BackupTriggerController {
   ) {}
 
   @Post('scheduled-run')
-  @ApiOperation({ summary: 'External trigger for daily backup (shared secret)' })
+  @ApiOperation({
+    summary: 'External trigger for daily backup (shared secret)',
+  })
   async scheduledRun(@Headers('authorization') authHeader: string) {
     const expected = this.config.get<string>('BACKUP_TRIGGER_SECRET');
     if (!expected) {
-      throw new ForbiddenException('Scheduled trigger disabled — BACKUP_TRIGGER_SECRET not set');
+      throw new ForbiddenException(
+        'Scheduled trigger disabled — BACKUP_TRIGGER_SECRET not set',
+      );
     }
     const token = (authHeader ?? '').replace(/^Bearer\s+/i, '').trim();
     // timingSafeEqual: constant-time comparison

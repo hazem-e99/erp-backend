@@ -1,6 +1,18 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  UseGuards, HttpCode, HttpStatus, UploadedFiles, UseInterceptors, Res,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  UploadedFiles,
+  UseInterceptors,
+  Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -88,7 +100,11 @@ export class SubscriptionsController {
       ...f,
       originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'),
     }));
-    return this.subscriptionsService.addDocuments(id, decoded as Express.Multer.File[], userId ?? null);
+    return this.subscriptionsService.addDocuments(
+      id,
+      decoded as Express.Multer.File[],
+      userId ?? null,
+    );
   }
 
   @Get(':id/documents/:docId')
@@ -104,7 +120,9 @@ export class SubscriptionsController {
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Length', String(sizeBytes));
     // RFC 5987: ASCII-safe fallback + UTF-8 encoded filename* for non-ASCII names.
-    const asciiFallback = originalName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+    const asciiFallback = originalName
+      .replace(/[^\x20-\x7E]/g, '_')
+      .replace(/"/g, '');
     res.setHeader(
       'Content-Disposition',
       `inline; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`,

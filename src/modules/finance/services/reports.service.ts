@@ -3,9 +3,21 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
-import { Revenue, RevenueDocument, RevenueStatus } from '../schemas/revenue.schema';
-import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
-import { Subscription, SubscriptionDocument, SubscriptionStatus } from '../schemas/subscription.schema';
+import {
+  Revenue,
+  RevenueDocument,
+  RevenueStatus,
+} from '../schemas/revenue.schema';
+import {
+  Installment,
+  InstallmentDocument,
+  InstallmentStatus,
+} from '../schemas/installment.schema';
+import {
+  Subscription,
+  SubscriptionDocument,
+  SubscriptionStatus,
+} from '../schemas/subscription.schema';
 import { ReportQueryDto } from '../dto/query.dto';
 
 @Injectable()
@@ -14,23 +26,33 @@ export class ReportsService {
     @InjectModel(Payment.name) private paymentModel: Model<PaymentDocument>,
     @InjectModel(Expense.name) private expenseModel: Model<ExpenseDocument>,
     @InjectModel(Revenue.name) private revenueModel: Model<RevenueDocument>,
-    @InjectModel(Installment.name) private installmentModel: Model<InstallmentDocument>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
+    @InjectModel(Installment.name)
+    private installmentModel: Model<InstallmentDocument>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<SubscriptionDocument>,
   ) {}
 
-  private getMonthDateRange(month: number, year: number): { start: Date; end: Date } {
+  private getMonthDateRange(
+    month: number,
+    year: number,
+  ): { start: Date; end: Date } {
     const start = new Date(Date.UTC(year, month - 1, 1));
     const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
     return { start, end };
   }
 
-  private resolvePeriod(query: ReportQueryDto, mode: 'ytd' | 'all' = 'ytd'): { start: Date; end: Date } {
+  private resolvePeriod(
+    query: ReportQueryDto,
+    mode: 'ytd' | 'all' = 'ytd',
+  ): { start: Date; end: Date } {
     if (query.month && query.year) {
       return this.getMonthDateRange(query.month, query.year);
     }
 
     if (query.startDate || query.endDate) {
-      const start = query.startDate ? new Date(query.startDate) : new Date(2000, 0, 1);
+      const start = query.startDate
+        ? new Date(query.startDate)
+        : new Date(2000, 0, 1);
       const end = query.endDate ? new Date(query.endDate) : new Date();
       end.setHours(23, 59, 59, 999);
       return { start, end };
@@ -70,12 +92,16 @@ export class ReportsService {
       ]),
     ]);
 
-    const map: Record<string, { period: string; cashIn: number; cashOut: number; net: number }> = {};
+    const map: Record<
+      string,
+      { period: string; cashIn: number; cashOut: number; net: number }
+    > = {};
     for (const p of paymentsRaw) {
       map[p._id] = { period: p._id, cashIn: p.cashIn, cashOut: 0, net: 0 };
     }
     for (const e of expensesRaw) {
-      if (!map[e._id]) map[e._id] = { period: e._id, cashIn: 0, cashOut: 0, net: 0 };
+      if (!map[e._id])
+        map[e._id] = { period: e._id, cashIn: 0, cashOut: 0, net: 0 };
       map[e._id].cashOut = e.cashOut;
     }
     for (const key of Object.keys(map)) {
@@ -107,14 +133,28 @@ export class ReportsService {
     const revenue = revenueResult[0]?.total ?? 0;
     const expenses = expenseResult[0]?.total ?? 0;
     const profit = revenue - expenses;
-    const margin = revenue > 0 ? parseFloat(((profit / revenue) * 100).toFixed(2)) : 0;
+    const margin =
+      revenue > 0 ? parseFloat(((profit / revenue) * 100).toFixed(2)) : 0;
 
-    return { revenue, expenses, profit, margin, startDate: start, endDate: end };
+    return {
+      revenue,
+      expenses,
+      profit,
+      margin,
+      startDate: start,
+      endDate: end,
+    };
   }
 
   async getOutstandingPayments(query: ReportQueryDto = {}) {
     const filter: Record<string, any> = {
-      status: { $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE, InstallmentStatus.PARTIALLY_PAID] },
+      status: {
+        $in: [
+          InstallmentStatus.PENDING,
+          InstallmentStatus.OVERDUE,
+          InstallmentStatus.PARTIALLY_PAID,
+        ],
+      },
     };
 
     if (query.status) {
@@ -138,18 +178,31 @@ export class ReportsService {
 
   async getSubscriptionMetrics(query: ReportQueryDto = {}) {
     const { start, end } = this.resolvePeriod(query, 'all');
-    const baseMatch = query.month || query.year || query.startDate || query.endDate
-      ? { createdAt: { $gte: start, $lte: end } }
-      : {};
+    const baseMatch =
+      query.month || query.year || query.startDate || query.endDate
+        ? { createdAt: { $gte: start, $lte: end } }
+        : {};
 
     const [statusBreakdown, planBreakdown, revenueByPlan] = await Promise.all([
       this.subscriptionModel.aggregate([
         { $match: baseMatch },
-        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$baseTotalPrice' } } }, // Use baseTotalPrice
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            total: { $sum: '$baseTotalPrice' },
+          },
+        }, // Use baseTotalPrice
       ]),
       this.subscriptionModel.aggregate([
         { $match: baseMatch },
-        { $group: { _id: '$planType', count: { $sum: 1 }, total: { $sum: '$baseTotalPrice' } } }, // Use baseTotalPrice
+        {
+          $group: {
+            _id: '$planType',
+            count: { $sum: 1 },
+            total: { $sum: '$baseTotalPrice' },
+          },
+        }, // Use baseTotalPrice
       ]),
       this.subscriptionModel.aggregate([
         { $match: { ...baseMatch, status: SubscriptionStatus.ACTIVE } },
@@ -190,7 +243,13 @@ export class ReportsService {
         { $group: { _id: null, total: { $sum: '$baseAmount' } } }, // Use baseAmount
       ]),
       this.installmentModel.aggregate([
-        { $match: { status: { $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE] } } },
+        {
+          $match: {
+            status: {
+              $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE],
+            },
+          },
+        },
         {
           $group: {
             _id: null,
@@ -198,9 +257,16 @@ export class ReportsService {
           },
         },
       ]),
-      this.subscriptionModel.countDocuments({ status: SubscriptionStatus.ACTIVE }),
-      this.installmentModel.countDocuments({ status: InstallmentStatus.OVERDUE }),
-      this.getCashFlow({ startDate: start.toISOString(), endDate: end.toISOString() }),
+      this.subscriptionModel.countDocuments({
+        status: SubscriptionStatus.ACTIVE,
+      }),
+      this.installmentModel.countDocuments({
+        status: InstallmentStatus.OVERDUE,
+      }),
+      this.getCashFlow({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      }),
     ]);
 
     const cashIn = totalCashIn[0]?.total ?? 0;

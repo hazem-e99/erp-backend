@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../../finance/constants/currency.constants';
 
 export type EmployeeSettlementDocument = EmployeeSettlement & Document;
 
@@ -61,4 +64,5 @@ export class EmployeeSettlement {
   notes: string;
 }
 
-export const EmployeeSettlementSchema = SchemaFactory.createForClass(EmployeeSettlement);
+export const EmployeeSettlementSchema =
+  SchemaFactory.createForClass(EmployeeSettlement);

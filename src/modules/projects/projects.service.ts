@@ -6,7 +6,9 @@ import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(@InjectModel(Project.name) private projectModel: Model<ProjectDocument>) {}
+  constructor(
+    @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
+  ) {}
 
   async findAll(query: any = {}) {
     const { page = 1, limit = 20, search, status, clientId } = query;
@@ -21,7 +23,10 @@ export class ProjectsService {
     const projects = await this.projectModel
       .find(filter)
       .populate('clientId', 'name company')
-      .populate({ path: 'teamMembers', populate: { path: 'userId', select: 'name email' } })
+      .populate({
+        path: 'teamMembers',
+        populate: { path: 'userId', select: 'name email' },
+      })
       .skip((page - 1) * limit)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -32,7 +37,10 @@ export class ProjectsService {
     const project = await this.projectModel
       .findById(id)
       .populate('clientId')
-      .populate({ path: 'teamMembers', populate: { path: 'userId', select: 'name email' } });
+      .populate({
+        path: 'teamMembers',
+        populate: { path: 'userId', select: 'name email' },
+      });
     if (!project) throw new NotFoundException('Project not found');
     return project;
   }
@@ -42,7 +50,8 @@ export class ProjectsService {
   }
 
   async update(id: string, dto: UpdateProjectDto) {
-    const project = await this.projectModel.findByIdAndUpdate(id, dto, { new: true })
+    const project = await this.projectModel
+      .findByIdAndUpdate(id, dto, { new: true })
       .populate('clientId', 'name company');
     if (!project) throw new NotFoundException('Project not found');
     return project;
@@ -56,13 +65,25 @@ export class ProjectsService {
 
   async getStats() {
     const total = await this.projectModel.countDocuments();
-    const active = await this.projectModel.countDocuments({ status: 'in-progress' });
-    const completed = await this.projectModel.countDocuments({ status: 'completed' });
+    const active = await this.projectModel.countDocuments({
+      status: 'in-progress',
+    });
+    const completed = await this.projectModel.countDocuments({
+      status: 'completed',
+    });
     const totalBudget = await this.projectModel.aggregate([
-      { $group: { _id: null, total: { $sum: '$budget' }, spent: { $sum: '$spent' } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$budget' },
+          spent: { $sum: '$spent' },
+        },
+      },
     ]);
     return {
-      total, active, completed,
+      total,
+      active,
+      completed,
       totalBudget: totalBudget[0]?.total || 0,
       totalSpent: totalBudget[0]?.spent || 0,
     };

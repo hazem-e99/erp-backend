@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AnnouncementsService } from './announcements.service';
@@ -20,7 +30,10 @@ export class AnnouncementsController {
   @Post('announcements')
   @RequirePermissions('announcements:send')
   @ApiOperation({ summary: 'Create & send announcement' })
-  create(@Body() dto: CreateAnnouncementDto, @CurrentUser('_id') userId: string) {
+  create(
+    @Body() dto: CreateAnnouncementDto,
+    @CurrentUser('_id') userId: string,
+  ) {
     return this.service.create(dto, userId);
   }
 
@@ -54,7 +67,10 @@ export class AnnouncementsController {
 
   @Put('notifications/:id/read')
   @ApiOperation({ summary: 'Mark notification as read' })
-  markAsRead(@Param('id', ParseObjectIdPipe) id: string, @CurrentUser('_id') userId: string) {
+  markAsRead(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser('_id') userId: string,
+  ) {
     return this.service.markAsRead(id, userId);
   }
 
@@ -66,7 +82,10 @@ export class AnnouncementsController {
 
   @Delete('notifications/:id')
   @ApiOperation({ summary: 'Delete a notification' })
-  deleteNotification(@Param('id', ParseObjectIdPipe) id: string, @CurrentUser('_id') userId: string) {
+  deleteNotification(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser('_id') userId: string,
+  ) {
     return this.service.deleteNotification(id, userId);
   }
 }
