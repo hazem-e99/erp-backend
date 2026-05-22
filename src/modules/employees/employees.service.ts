@@ -114,8 +114,33 @@ export class EmployeesService {
     };
   }
 
+  /**
+   * Flip the per-employee Payroll visibility flag. The employee stays active;
+   * only their visibility on the Payroll page changes.
+   */
+  async setPayrollExclusion(id: string, excludeFromPayroll: boolean) {
+    const emp = await this.employeeModel.findByIdAndUpdate(
+      id,
+      { $set: { excludeFromPayroll } },
+      { new: true },
+    );
+    if (!emp) throw new NotFoundException('Employee not found');
+    return {
+      _id: emp._id,
+      name: emp.name,
+      excludeFromPayroll: emp.excludeFromPayroll,
+    };
+  }
+
   async findAll(query: any = {}) {
-    const { page = 1, limit = 20, search, department, status } = query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      department,
+      status,
+      excludeFromPayroll,
+    } = query;
     const filter: any = {};
     if (search) {
       filter.$or = [
@@ -128,6 +153,13 @@ export class EmployeesService {
     }
     if (department) filter.department = department;
     if (status) filter.status = status;
+    // Optional filter by Payroll-visibility flag. Accepts 'true' / 'false'
+    // strings (query params) or actual booleans.
+    if (excludeFromPayroll === true || excludeFromPayroll === 'true') {
+      filter.excludeFromPayroll = true;
+    } else if (excludeFromPayroll === false || excludeFromPayroll === 'false') {
+      filter.excludeFromPayroll = { $ne: true };
+    }
 
     const total = await this.employeeModel.countDocuments(filter);
     const employees = await this.employeeModel

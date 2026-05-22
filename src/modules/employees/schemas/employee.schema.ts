@@ -94,6 +94,16 @@ export class Employee {
   /** Set when the employee is terminated. Used by payroll for proration. */
   @Prop({ default: null })
   terminationDate?: Date;
+
+  /**
+   * When true, the employee is hidden from the Payroll page and excluded
+   * from payroll generation listings. The Employee record itself stays
+   * active — useful for founders, partners, or anyone who shouldn't appear
+   * in the salary workflow. Toggled by the per-card "Remove from Payroll"
+   * action or from the Employees page.
+   */
+  @Prop({ default: false })
+  excludeFromPayroll?: boolean;
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);

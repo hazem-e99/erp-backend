@@ -73,6 +73,22 @@ export class EmployeesController {
     return this.employeesService.normalizeJoiningDates(body.month, body.year);
   }
 
+  @Post(':id/payroll-exclusion')
+  @RequirePermissions('employees:update')
+  @ApiOperation({
+    summary:
+      'Hide/show an employee on the Payroll page (without terminating them)',
+  })
+  setPayrollExclusion(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() body: { excludeFromPayroll: boolean },
+  ) {
+    return this.employeesService.setPayrollExclusion(
+      id,
+      !!body.excludeFromPayroll,
+    );
+  }
+
   @Get(':id')
   @RequirePermissions('employees:read')
   @ApiOperation({ summary: 'Get employee by ID' })

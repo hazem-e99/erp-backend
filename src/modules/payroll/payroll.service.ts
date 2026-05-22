@@ -29,6 +29,39 @@ import {
   SALARY_DAYS_PER_MONTH,
 } from './utils/payroll-cycle.utils';
 
+/**
+ * Resolve the date a salary expense should be stamped with.
+ *
+ * Priority:
+ *   1. Explicit `expenseDate` from the caller (frontend date picker).
+ *   2. The cycle's `paymentDate` (so the expense lands inside the payroll
+ *      month in Finance reports, regardless of when the operator clicked
+ *      "Mark as Expenses").
+ *   3. Last resort for legacy payrolls without `paymentDate`: the payroll's
+ *      own (month, year) on day = paymentDay default (25). This keeps the
+ *      expense inside the correct accounting month.
+ */
+function resolveExpenseDate(
+  expenseDate: string | undefined,
+  cyclePaymentDate: Date | null | undefined,
+  fallbackMonth: number,
+  fallbackYear: number,
+): Date {
+  if (expenseDate) {
+    const [y, m, d] = expenseDate.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  if (cyclePaymentDate) {
+    const pd = new Date(cyclePaymentDate);
+    return new Date(
+      Date.UTC(pd.getUTCFullYear(), pd.getUTCMonth(), pd.getUTCDate()),
+    );
+  }
+  // Legacy payroll with no paymentDate — stamp it at the 25th of (month, year)
+  // by default so it still falls inside the right accounting month.
+  return new Date(Date.UTC(fallbackYear, fallbackMonth - 1, 25));
+}
+
 @Injectable()
 export class PayrollService {
   constructor(
@@ -569,17 +602,18 @@ export class PayrollService {
       0,
     );
 
-    // Use the provided expenseDate or default to today (UTC)
-    let date = new Date();
-    if (expenseDate) {
-      // expenseDate is in format YYYY-MM-DD from the frontend date input
-      const [year, month, day] = expenseDate.split('-').map(Number);
-      date = new Date(Date.UTC(year, month - 1, day));
-    } else {
-      date = new Date(
-        Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-      );
-    }
+    // Resolve the expense date:
+    //   - explicit `expenseDate` from the caller wins.
+    //   - otherwise use the cycle's `paymentDate` so the salary lands inside
+    //     the payroll month in Finance reports (regardless of when the
+    //     operator clicked the button).
+    //   - last resort (legacy payrolls without `paymentDate`): today.
+    const date = resolveExpenseDate(
+      expenseDate,
+      pendingPayrolls[0].paymentDate,
+      targetMonth,
+      targetYear,
+    );
 
     // Create expense record in base currency
     const expense = await this.expenseModel.create({
@@ -641,15 +675,12 @@ export class PayrollService {
       0,
     );
 
-    let date = new Date();
-    if (expenseDate) {
-      const [yearPart, monthPart, dayPart] = expenseDate.split('-').map(Number);
-      date = new Date(Date.UTC(yearPart, monthPart - 1, dayPart));
-    } else {
-      date = new Date(
-        Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-      );
-    }
+    const date = resolveExpenseDate(
+      expenseDate,
+      pendingPayrolls[0].paymentDate,
+      targetMonth,
+      targetYear,
+    );
 
     const expense = await this.expenseModel.create({
       amount: totalBaseAmount,
