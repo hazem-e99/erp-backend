@@ -41,6 +41,16 @@ export class EmployeesController {
     return this.employeesService.findAll(query);
   }
 
+  @Post('normalize-joining-dates')
+  @RequirePermissions('employees:update')
+  @ApiOperation({
+    summary:
+      'Bulk-set dateOfJoining to day 1 of the given month for all employees who joined before that date',
+  })
+  normalizeJoiningDates(@Body() body: { month: number; year: number }) {
+    return this.employeesService.normalizeJoiningDates(body.month, body.year);
+  }
+
   @Get(':id')
   @RequirePermissions('employees:read')
   @ApiOperation({ summary: 'Get employee by ID' })

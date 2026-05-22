@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../../finance/constants/currency.constants';
 
 export type EmployeeDocument = Employee & Document;
 
@@ -78,11 +81,19 @@ export class Employee {
   @Prop({ default: 0 })
   usedLeaves: number;
 
-  @Prop({ type: String, default: null, enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'] })
+  @Prop({
+    type: String,
+    default: null,
+    enum: ['mobile_wallet', 'visa', 'bank_account', 'instapay'],
+  })
   paymentMethodType?: string;
 
   @Prop({ type: String, default: null })
   paymentMethodDetails?: string;
+
+  /** Set when the employee is terminated. Used by payroll for proration. */
+  @Prop({ default: null })
+  terminationDate?: Date;
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);

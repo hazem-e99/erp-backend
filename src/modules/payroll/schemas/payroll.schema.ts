@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SupportedCurrency, BASE_CURRENCY } from '../../finance/constants/currency.constants';
+import {
+  SupportedCurrency,
+  BASE_CURRENCY,
+} from '../../finance/constants/currency.constants';
 
 export type PayrollDocument = Payroll & Document;
 
@@ -36,9 +39,6 @@ export class Payroll {
   deductions: number;
 
   @Prop({ default: 0 })
-  overtimePay: number;
-
-  @Prop({ default: 0 })
   maxKpi: number;
 
   @Prop({ default: 0 })
@@ -61,9 +61,6 @@ export class Payroll {
   baseDeductions!: number;
 
   @Prop({ default: 0, min: 0 })
-  baseOvertimePay!: number;
-
-  @Prop({ default: 0, min: 0 })
   baseMaxKpi!: number;
 
   @Prop({ default: 0, min: 0 })
@@ -79,11 +76,43 @@ export class Payroll {
   @Prop({ default: null })
   transactionNumber: string;
 
-  @Prop({ default: 0 })
-  workingDays: number;
+  // ── Fixed Payroll Cycle fields (populated for payrolls generated after the refactor) ──
 
+  /** First day of the payroll cycle (e.g. Apr 26) */
+  @Prop({ default: null })
+  cycleStart: Date;
+
+  /** Last day of the payroll cycle (e.g. May 25) */
+  @Prop({ default: null })
+  cycleEnd: Date;
+
+  /** Date salaries are paid out */
+  @Prop({ default: null })
+  paymentDate: Date;
+
+  /** Calendar days in the full cycle */
   @Prop({ default: 0 })
-  presentDays: number;
+  totalCycleDays: number;
+
+  /** Salary days the employee was active (out of 30) */
+  @Prop({ default: 0 })
+  workedDays: number;
+
+  /** baseSalary / 30 – in original currency */
+  @Prop({ default: 0 })
+  dailyRate: number;
+
+  /** dailyRate × workedDays – in original currency */
+  @Prop({ default: 0 })
+  proratedBaseSalary: number;
+
+  /** proratedBaseSalary × exchangeRate – in base currency */
+  @Prop({ default: 0 })
+  baseProratedBaseSalary: number;
+
+  /** True when the employee did not cover the full cycle */
+  @Prop({ default: false })
+  isProrated: boolean;
 
   @Prop({ default: 'draft', enum: ['draft', 'processed', 'paid'] })
   status: string;

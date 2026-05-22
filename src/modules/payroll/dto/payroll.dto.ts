@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsMongoId, IsEnum } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsMongoId,
+  IsEnum,
+  Min,
+  Max,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GeneratePayrollDto {
@@ -90,4 +99,27 @@ export class UpdatePayrollDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class UpsertPayrollConfigDto {
+  @ApiPropertyOptional({ example: 26 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  cycleStartDay?: number;
+
+  @ApiPropertyOptional({ example: 25 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  cycleEndDay?: number;
+
+  @ApiPropertyOptional({ example: 25 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  paymentDay?: number;
 }

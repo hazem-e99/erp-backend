@@ -1,22 +1,35 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Installment, InstallmentDocument, InstallmentStatus } from '../schemas/installment.schema';
-import { Subscription, SubscriptionDocument, SubscriptionStatus } from '../schemas/subscription.schema';
+import {
+  Installment,
+  InstallmentDocument,
+  InstallmentStatus,
+} from '../schemas/installment.schema';
+import {
+  Subscription,
+  SubscriptionDocument,
+  SubscriptionStatus,
+} from '../schemas/subscription.schema';
 import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { UpdatePaymentDto } from '../dto/update-payment.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { FinanceGateway } from '../finance.gateway';
 import { FinanceErrors } from '../finance.exceptions';
-import { calculateBaseAmount, getMonthDateRange } from '../validators/finance.validators';
+import {
+  calculateBaseAmount,
+  getMonthDateRange,
+} from '../validators/finance.validators';
 
 @Injectable()
 export class PaymentsService {
   constructor(
     @InjectModel(Payment.name) private paymentModel: Model<PaymentDocument>,
-    @InjectModel(Installment.name) private installmentModel: Model<InstallmentDocument>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
+    @InjectModel(Installment.name)
+    private installmentModel: Model<InstallmentDocument>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<SubscriptionDocument>,
     private readonly gateway: FinanceGateway,
   ) {}
 
@@ -25,10 +38,12 @@ export class PaymentsService {
    * Allocates payment to the specified installment (FIFO within subscription).
    * Handles partial and overpayments.
    * Uses findOneAndUpdate for atomic updates to prevent race conditions.
-   * 
+   *
    * CRITICAL: All allocation math uses baseAmount (in base currency EGP)
    */
-  async create(dto: CreatePaymentDto): Promise<{ payment: PaymentDocument; overflow: number }> {
+  async create(
+    dto: CreatePaymentDto,
+  ): Promise<{ payment: PaymentDocument; overflow: number }> {
     const installment = await this.installmentModel.findById(dto.installmentId);
     if (!installment) throw FinanceErrors.INSTALLMENT_NOT_FOUND();
     if (installment.status === InstallmentStatus.PAID) {
@@ -36,7 +51,9 @@ export class PaymentsService {
     }
 
     // Block payment on cancelled subscription
-    const subscription = await this.subscriptionModel.findById(installment.subscriptionId);
+    const subscription = await this.subscriptionModel.findById(
+      installment.subscriptionId,
+    );
     if (subscription?.status === SubscriptionStatus.CANCELLED) {
       throw FinanceErrors.INSTALLMENT_CANCELLED_SUB();
     }
@@ -44,11 +61,27 @@ export class PaymentsService {
     // Calculate base amount (payment amount converted to base currency)
     const paymentBaseAmount = calculateBaseAmount(dto.amount, dto.exchangeRate);
 
+    // Gate fees: deducted from incoming amount (customer pays full amount)
+    // Must be calculated BEFORE allocation so we apply only the net amount received
+    const gateFeePercentage = dto.gateFeePercentage ?? 0;
+    const gateFeeAmount = parseFloat(
+      ((dto.amount * gateFeePercentage) / 100).toFixed(2),
+    );
+    const baseGateFeeAmount = parseFloat(
+      ((paymentBaseAmount * gateFeePercentage) / 100).toFixed(2),
+    );
+    const baseNetAmount = parseFloat(
+      (paymentBaseAmount - baseGateFeeAmount).toFixed(2),
+    );
+
     // Installment's remaining balance is in base currency
+    // Apply only net amount (after gate fee) to the installment
     const remaining = installment.baseAmount - installment.paidAmount;
-    const appliedBase = Math.min(paymentBaseAmount, remaining);
-    const overflowBase = parseFloat((paymentBaseAmount - appliedBase).toFixed(2));
-    const newPaidAmount = parseFloat((installment.paidAmount + appliedBase).toFixed(2));
+    const appliedBase = Math.min(baseNetAmount, remaining);
+    const overflowBase = parseFloat((baseNetAmount - appliedBase).toFixed(2));
+    const newPaidAmount = parseFloat(
+      (installment.paidAmount + appliedBase).toFixed(2),
+    );
     const newStatus =
       newPaidAmount >= installment.baseAmount
         ? InstallmentStatus.PAID
@@ -61,7 +94,10 @@ export class PaymentsService {
         $set: {
           paidAmount: newPaidAmount,
           status: newStatus,
-          paidAt: newStatus === InstallmentStatus.PAID ? new Date() : installment.paidAt,
+          paidAt:
+            newStatus === InstallmentStatus.PAID
+              ? new Date()
+              : installment.paidAt,
         },
       },
       { new: true },
@@ -70,12 +106,6 @@ export class PaymentsService {
     if (!updatedInstallment) {
       throw FinanceErrors.PAYMENT_CONFLICT();
     }
-
-    // Gate fees: deducted from incoming amount (customer pays full amount)
-    const gateFeePercentage = dto.gateFeePercentage ?? 0;
-    const gateFeeAmount = parseFloat(((dto.amount * gateFeePercentage) / 100).toFixed(2));
-    const baseGateFeeAmount = parseFloat(((paymentBaseAmount * gateFeePercentage) / 100).toFixed(2));
-    const baseNetAmount = parseFloat((paymentBaseAmount - baseGateFeeAmount).toFixed(2));
 
     // Create payment record
     const payment = new this.paymentModel({
@@ -115,13 +145,17 @@ export class PaymentsService {
       const nextInstallment = await this.installmentModel
         .findOne({
           subscriptionId: new Types.ObjectId(dto.subscriptionId),
-          status: { $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE] },
+          status: {
+            $in: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE],
+          },
         })
         .sort({ dueDate: 1 });
 
       if (nextInstallment) {
         // Convert overflow back to original currency for the recursive call
-        const overflowInOriginalCurrency = parseFloat((overflowBase / dto.exchangeRate).toFixed(2));
+        const overflowInOriginalCurrency = parseFloat(
+          (overflowBase / dto.exchangeRate).toFixed(2),
+        );
         await this.create({
           ...dto,
           installmentId: nextInstallment._id.toString(),
@@ -151,9 +185,13 @@ export class PaymentsService {
       const { start, end } = getMonthDateRange(query.month, query.year);
       filter.paymentDate = { $gte: start, $lte: end };
     } else {
-      if (query.startDate) filter.paymentDate = { $gte: new Date(query.startDate) };
+      if (query.startDate)
+        filter.paymentDate = { $gte: new Date(query.startDate) };
       if (query.endDate) {
-        filter.paymentDate = { ...(filter.paymentDate || {}), $lte: new Date(query.endDate) };
+        filter.paymentDate = {
+          ...(filter.paymentDate || {}),
+          $lte: new Date(query.endDate),
+        };
       }
     }
 
@@ -183,7 +221,8 @@ export class PaymentsService {
   async update(id: string, dto: UpdatePaymentDto): Promise<PaymentDocument> {
     const payment = await this.findOne(id);
 
-    if (dto.paymentDate !== undefined) payment.paymentDate = new Date(dto.paymentDate);
+    if (dto.paymentDate !== undefined)
+      payment.paymentDate = new Date(dto.paymentDate);
     if (dto.method !== undefined) payment.method = dto.method;
     if (dto.reference !== undefined) payment.reference = dto.reference;
     if (dto.notes !== undefined) payment.notes = dto.notes;
@@ -191,13 +230,21 @@ export class PaymentsService {
     if (dto.gateFeePercentage !== undefined) {
       const pct = dto.gateFeePercentage;
       payment.gateFeePercentage = pct;
-      payment.gateFeeAmount = parseFloat(((payment.amount * pct) / 100).toFixed(2));
-      payment.baseGateFeeAmount = parseFloat(((payment.baseAmount * pct) / 100).toFixed(2));
-      payment.baseNetAmount = parseFloat((payment.baseAmount - payment.baseGateFeeAmount).toFixed(2));
+      payment.gateFeeAmount = parseFloat(
+        ((payment.amount * pct) / 100).toFixed(2),
+      );
+      payment.baseGateFeeAmount = parseFloat(
+        ((payment.baseAmount * pct) / 100).toFixed(2),
+      );
+      payment.baseNetAmount = parseFloat(
+        (payment.baseAmount - payment.baseGateFeeAmount).toFixed(2),
+      );
     }
 
     await payment.save();
-    this.gateway.emitFinanceUpdate('payment:updated', { paymentId: payment._id.toString() });
+    this.gateway.emitFinanceUpdate('payment:updated', {
+      paymentId: payment._id.toString(),
+    });
     return payment;
   }
 
@@ -250,11 +297,17 @@ export class PaymentsService {
     if (subscription) {
       subscription.paidAmount = parseFloat(totalPaid.toFixed(2));
       // If no payments left and subscription was active because of payments, revert to pending.
-      if (totalPaid === 0 && subscription.status === SubscriptionStatus.ACTIVE) {
+      if (
+        totalPaid === 0 &&
+        subscription.status === SubscriptionStatus.ACTIVE
+      ) {
         subscription.status = SubscriptionStatus.PENDING;
       }
       // If the subscription was completed and we removed payments below the total, reactivate it.
-      if (totalPaid < subscription.baseTotalPrice && subscription.status === SubscriptionStatus.COMPLETED) {
+      if (
+        totalPaid < subscription.baseTotalPrice &&
+        subscription.status === SubscriptionStatus.COMPLETED
+      ) {
         subscription.status = SubscriptionStatus.ACTIVE;
       }
       await subscription.save();

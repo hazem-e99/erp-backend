@@ -1,11 +1,27 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PayrollService } from './payroll.service';
-import { GeneratePayrollDto, UpdatePayrollDto } from './dto/payroll.dto';
+import {
+  GeneratePayrollDto,
+  UpdatePayrollDto,
+  UpsertPayrollConfigDto,
+} from './dto/payroll.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -17,6 +33,22 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
 @Controller('payroll')
 export class PayrollController {
   constructor(private payrollService: PayrollService) {}
+
+  // ── Payroll Config ──────────────────────────────────────────────────────────
+
+  @Get('config')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({ summary: 'Get payroll cycle configuration' })
+  getConfig() {
+    return this.payrollService.getConfig();
+  }
+
+  @Put('config')
+  @RequirePermissions('payroll:create')
+  @ApiOperation({ summary: 'Update payroll cycle configuration' })
+  upsertConfig(@Body() dto: UpsertPayrollConfigDto) {
+    return this.payrollService.upsertConfig(dto);
+  }
 
   @Post('generate')
   @RequirePermissions('payroll:create')
@@ -42,7 +74,9 @@ export class PayrollController {
   // IMPORTANT: static routes must come BEFORE `/:id` to avoid ParseObjectIdPipe collisions
   @Get('pending-expenses-amount')
   @RequirePermissions('payroll:read')
-  @ApiOperation({ summary: 'Get total amount of paid payrolls not recorded as expenses' })
+  @ApiOperation({
+    summary: 'Get total amount of paid payrolls not recorded as expenses',
+  })
   async getPendingExpensesAmount() {
     const total = await this.payrollService.getPendingExpensesAmount();
     return { total };
@@ -51,34 +85,62 @@ export class PayrollController {
   @Post('mark-as-expenses')
   @RequirePermissions('payroll:create')
   @ApiOperation({ summary: 'Mark all paid payrolls as expenses' })
-  markAsExpenses(@Body() body: { month?: number; year?: number; expenseDate?: string }) {
-    return this.payrollService.markAsExpenses(body.month, body.year, body.expenseDate);
+  markAsExpenses(
+    @Body() body: { month?: number; year?: number; expenseDate?: string },
+  ) {
+    return this.payrollService.markAsExpenses(
+      body.month,
+      body.year,
+      body.expenseDate,
+    );
   }
 
   @Post('mark-as-expense-employee')
   @RequirePermissions('payroll:create')
-  @ApiOperation({ summary: 'Mark paid payrolls for a single employee as expenses' })
-  markEmployeeAsExpense(@Body() body: { employeeId: string; month?: number; year?: number; expenseDate?: string }) {
-    return this.payrollService.markAsExpenseForEmployee(body.employeeId, body.month, body.year, body.expenseDate);
+  @ApiOperation({
+    summary: 'Mark paid payrolls for a single employee as expenses',
+  })
+  markEmployeeAsExpense(
+    @Body()
+    body: {
+      employeeId: string;
+      month?: number;
+      year?: number;
+      expenseDate?: string;
+    },
+  ) {
+    return this.payrollService.markAsExpenseForEmployee(
+      body.employeeId,
+      body.month,
+      body.year,
+      body.expenseDate,
+    );
   }
 
   @Post('update-expense')
   @RequirePermissions('payroll:update')
-  @ApiOperation({ summary: 'Update the salary expense record for a given month' })
+  @ApiOperation({
+    summary: 'Update the salary expense record for a given month',
+  })
   updateExpense(@Body() body: { month: number; year: number }) {
     return this.payrollService.updateExpense(body.month, body.year);
   }
 
   @Post('unlink-expense')
   @RequirePermissions('payroll:update')
-  @ApiOperation({ summary: 'Unlink and delete the salary expense for a given month so it can be re-recorded' })
+  @ApiOperation({
+    summary:
+      'Unlink and delete the salary expense for a given month so it can be re-recorded',
+  })
   unlinkExpense(@Body() body: { month: number; year: number }) {
     return this.payrollService.unlinkExpense(body.month, body.year);
   }
 
   @Post('clean-old-expenses')
   @RequirePermissions('payroll:update')
-  @ApiOperation({ summary: 'Delete all old/duplicate salary expenses from Finance' })
+  @ApiOperation({
+    summary: 'Delete all old/duplicate salary expenses from Finance',
+  })
   cleanOldExpenses() {
     return this.payrollService.cleanOldExpenses();
   }
@@ -100,8 +162,24 @@ export class PayrollController {
   @Put(':id')
   @RequirePermissions('payroll:update')
   @ApiOperation({ summary: 'Update payroll' })
-  update(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: UpdatePayrollDto) {
+  update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdatePayrollDto,
+  ) {
     return this.payrollService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('payroll:update')
+  @ApiOperation({
+    summary:
+      'Delete a payroll record. If linked to a Finance expense, pass force=true to detach and re-sync the expense.',
+  })
+  remove(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query('force') force?: string,
+  ) {
+    return this.payrollService.remove(id, force === 'true' || force === '1');
   }
 
   @Post(':id/upload-screenshot')
@@ -125,7 +203,9 @@ export class PayrollController {
     @UploadedFile() file: Express.Multer.File,
     @Body('transactionNumber') transactionNumber?: string,
   ) {
-    const screenshotPath = file ? `/uploads/payroll/${file.filename}` : undefined;
+    const screenshotPath = file
+      ? `/uploads/payroll/${file.filename}`
+      : undefined;
     return this.payrollService.update(id, {
       transferScreenshot: screenshotPath,
       transactionNumber: transactionNumber || undefined,

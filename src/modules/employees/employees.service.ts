@@ -1,13 +1,32 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { Employee, EmployeeDocument } from './schemas/employee.schema';
-import { Payroll, PayrollDocument } from '../payroll/schemas/payroll.schema';
-import { EmployeeSettlement, EmployeeSettlementDocument } from './schemas/employee-settlement.schema';
+import {
+  EmployeeSettlement,
+  EmployeeSettlementDocument,
+} from './schemas/employee-settlement.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Role, RoleDocument } from '../roles/schemas/role.schema';
-import { CreateEmployeeDto, UpdateEmployeeDto, UpdateProfileDto, ChangePasswordDto, AdminResetPasswordDto } from './dto/employee.dto';
+import { Payroll, PayrollDocument } from '../payroll/schemas/payroll.schema';
+import {
+  PayrollConfig,
+  PayrollConfigDocument,
+} from '../payroll/schemas/payroll-config.schema';
+import {
+  CreateEmployeeDto,
+  UpdateEmployeeDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+  AdminResetPasswordDto,
+} from './dto/employee.dto';
 import { CreateEmployeeSettlementDto } from './dto/settlement.dto';
 import { calculateBaseAmount } from '../finance/validators/finance.validators';
 import { BASE_CURRENCY } from '../finance/constants/currency.constants';
@@ -18,8 +37,11 @@ export class EmployeesService {
     @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
+    @InjectModel(EmployeeSettlement.name)
+    private settlementModel: Model<EmployeeSettlementDocument>,
     @InjectModel(Payroll.name) private payrollModel: Model<PayrollDocument>,
-    @InjectModel(EmployeeSettlement.name) private settlementModel: Model<EmployeeSettlementDocument>,
+    @InjectModel(PayrollConfig.name)
+    private payrollConfigModel: Model<PayrollConfigDocument>,
   ) {}
 
   private async terminateEmployeeCore(emp: EmployeeDocument) {
@@ -29,8 +51,67 @@ export class EmployeesService {
     // Deactivate user account
     await this.userModel.findByIdAndUpdate(emp.userId, { isActive: false });
 
-    // Remove all payroll records for this employee
-    await this.payrollModel.deleteMany({ employeeId: emp._id });
+    // NOTE: Payroll history is intentionally preserved on termination.
+    // The final (possibly prorated) payroll for the termination month
+    // should be generated separately before terminating the employee.
+  }
+
+  /**
+   * Bulk-set dateOfJoining = cycle start of the selected payroll month for
+   * every active employee who joined BEFORE that date.
+   *
+   * The target is `cycleStartDay` of the PREVIOUS calendar month (default:
+   * day 26). This guarantees the employee covers a full 30-day payroll cycle
+   * up to `cycleEndDay` (default: day 25) — independent of whether the
+   * underlying calendar month has 28, 29, 30, or 31 days.
+   *
+   * Employees who joined on/after the cycle start are NOT modified, so
+   * legitimate mid-cycle joiners still get prorated correctly.
+   */
+  async normalizeJoiningDates(month: number, year: number) {
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException('Invalid month');
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException('Invalid year');
+    }
+
+    // Read the singleton payroll cycle config to find cycleStartDay.
+    // Auto-create with defaults (26/25/25) if missing — matches PayrollService.getConfig.
+    let config = await this.payrollConfigModel.findOne();
+    if (!config) {
+      config = await this.payrollConfigModel.create({
+        cycleStartDay: 26,
+        cycleEndDay: 25,
+        paymentDay: 25,
+      });
+    }
+
+    // cycleStart = cycleStartDay of the PREVIOUS calendar month
+    let startMonth = month - 1;
+    let startYear = year;
+    if (startMonth === 0) {
+      startMonth = 12;
+      startYear = year - 1;
+    }
+    const target = new Date(
+      Date.UTC(startYear, startMonth - 1, config.cycleStartDay),
+    );
+
+    const result = await this.employeeModel.updateMany(
+      {
+        status: 'active',
+        dateOfJoining: { $lt: target },
+      },
+      { $set: { dateOfJoining: target } },
+    );
+
+    return {
+      updated: result.modifiedCount || 0,
+      matched: result.matchedCount || 0,
+      target: target.toISOString().split('T')[0],
+      cycleStartDay: config.cycleStartDay,
+    };
   }
 
   async findAll(query: any = {}) {
@@ -59,13 +140,17 @@ export class EmployeesService {
   }
 
   async findById(id: string) {
-    const emp = await this.employeeModel.findById(id).populate({ path: 'userId', select: '-password' });
+    const emp = await this.employeeModel
+      .findById(id)
+      .populate({ path: 'userId', select: '-password' });
     if (!emp) throw new NotFoundException('Employee not found');
     return emp;
   }
 
   async findByUserId(userId: string) {
-    return this.employeeModel.findOne({ userId }).populate({ path: 'userId', select: '-password' });
+    return this.employeeModel
+      .findOne({ userId })
+      .populate({ path: 'userId', select: '-password' });
   }
 
   /**
@@ -73,10 +158,14 @@ export class EmployeesService {
    */
   async create(dto: CreateEmployeeDto) {
     // Check for duplicate email
-    const emailExists = await this.userModel.findOne({ email: dto.emailAddress });
+    const emailExists = await this.userModel.findOne({
+      email: dto.emailAddress,
+    });
     if (emailExists) throw new ConflictException('Email already in use');
 
-    const empIdExists = await this.employeeModel.findOne({ employeeId: dto.employeeId });
+    const empIdExists = await this.employeeModel.findOne({
+      employeeId: dto.employeeId,
+    });
     if (empIdExists) throw new ConflictException('Employee ID already exists');
 
     // Hash password
@@ -85,7 +174,10 @@ export class EmployeesService {
     // Get Employee role
     let employeeRole = await this.roleModel.findOne({ name: 'Employee' });
     if (!employeeRole) {
-      employeeRole = await this.roleModel.findOne({ isSystem: true, name: { $ne: 'Super Admin' } });
+      employeeRole = await this.roleModel.findOne({
+        isSystem: true,
+        name: { $ne: 'Super Admin' },
+      });
     }
 
     // Create User account
@@ -126,7 +218,9 @@ export class EmployeesService {
       contractTypes: dto.contractTypes || [],
     } as any);
 
-    return this.employeeModel.findById(employee._id).populate({ path: 'userId', select: '-password' });
+    return this.employeeModel
+      .findById(employee._id)
+      .populate({ path: 'userId', select: '-password' });
   }
 
   /**
@@ -138,26 +232,43 @@ export class EmployeesService {
 
     // Calculate base amounts if currency fields change
     const updateData: any = { ...dto };
-    
-    const newCurrency = dto.currency !== undefined ? dto.currency : emp.currency;
-    const newExchangeRate = dto.exchangeRate !== undefined ? dto.exchangeRate : emp.exchangeRate;
-    const newBaseSalary = dto.baseSalary !== undefined ? dto.baseSalary : emp.baseSalary;
+
+    const newCurrency =
+      dto.currency !== undefined ? dto.currency : emp.currency;
+    const newExchangeRate =
+      dto.exchangeRate !== undefined ? dto.exchangeRate : emp.exchangeRate;
+    const newBaseSalary =
+      dto.baseSalary !== undefined ? dto.baseSalary : emp.baseSalary;
     const newMaxKpi = dto.maxKpi !== undefined ? dto.maxKpi : emp.maxKpi;
 
     // Recalculate base amounts if any relevant field changed
-    if (dto.baseSalary !== undefined || dto.exchangeRate !== undefined || dto.currency !== undefined) {
-      updateData.baseBaseSalary = calculateBaseAmount(newBaseSalary, newExchangeRate);
+    if (
+      dto.baseSalary !== undefined ||
+      dto.exchangeRate !== undefined ||
+      dto.currency !== undefined
+    ) {
+      updateData.baseBaseSalary = calculateBaseAmount(
+        newBaseSalary,
+        newExchangeRate,
+      );
     }
-    if (dto.maxKpi !== undefined || dto.exchangeRate !== undefined || dto.currency !== undefined) {
+    if (
+      dto.maxKpi !== undefined ||
+      dto.exchangeRate !== undefined ||
+      dto.currency !== undefined
+    ) {
       updateData.baseMaxKpi = calculateBaseAmount(newMaxKpi, newExchangeRate);
     }
 
-    const updatedEmp = await this.employeeModel.findByIdAndUpdate(id, updateData, { new: true })
+    const updatedEmp = await this.employeeModel
+      .findByIdAndUpdate(id, updateData, { new: true })
       .populate({ path: 'userId', select: '-password' });
 
     // Sync name to User if changed
     if (dto.name) {
-      await this.userModel.findByIdAndUpdate(updatedEmp!.userId, { name: dto.name });
+      await this.userModel.findByIdAndUpdate(updatedEmp!.userId, {
+        name: dto.name,
+      });
     }
 
     return updatedEmp;
@@ -173,7 +284,8 @@ export class EmployeesService {
     // Update employee fields
     if (dto.name) emp.name = dto.name;
     if (dto.address !== undefined) emp.address = dto.address;
-    if (dto.whatsappNumber !== undefined) emp.whatsappNumber = dto.whatsappNumber;
+    if (dto.whatsappNumber !== undefined)
+      emp.whatsappNumber = dto.whatsappNumber;
     await emp.save();
 
     // Sync to User
@@ -195,7 +307,8 @@ export class EmployeesService {
     if (!user) throw new NotFoundException('User not found');
 
     const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
-    if (!isMatch) throw new BadRequestException('Current password is incorrect');
+    if (!isMatch)
+      throw new BadRequestException('Current password is incorrect');
 
     user.password = await bcrypt.hash(dto.newPassword, 12);
     await user.save();
@@ -210,7 +323,9 @@ export class EmployeesService {
     if (!emp) throw new NotFoundException('Employee not found');
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
-    await this.userModel.findByIdAndUpdate(emp.userId, { password: hashedPassword });
+    await this.userModel.findByIdAndUpdate(emp.userId, {
+      password: hashedPassword,
+    });
     return { message: 'Password reset successfully' };
   }
 
@@ -221,6 +336,10 @@ export class EmployeesService {
     const emp = await this.employeeModel.findById(id);
     if (!emp) throw new NotFoundException('Employee not found');
 
+    // Set terminationDate to today so future payroll generation can prorate correctly
+    await this.employeeModel.findByIdAndUpdate(emp._id, {
+      terminationDate: new Date(),
+    });
     await this.terminateEmployeeCore(emp);
 
     return { message: 'Employee terminated and account deactivated' };
@@ -235,11 +354,19 @@ export class EmployeesService {
 
     await this.terminateEmployeeCore(emp);
 
+    // Store the last working day on the employee record for payroll proration
+    if (dto.lastWorkingDay) {
+      await this.employeeModel.findByIdAndUpdate(emp._id, {
+        terminationDate: dto.lastWorkingDay,
+      });
+    }
+
     const accruedSalary = dto.accruedSalary ?? 0;
     const bonuses = dto.bonuses ?? 0;
     const deductions = dto.deductions ?? 0;
     const otherAdjustments = dto.otherAdjustments ?? 0;
-    const netSettlement = accruedSalary + bonuses - deductions + otherAdjustments;
+    const netSettlement =
+      accruedSalary + bonuses - deductions + otherAdjustments;
 
     const currency = emp.currency || BASE_CURRENCY;
     const exchangeRate = emp.exchangeRate || 1;
@@ -265,7 +392,10 @@ export class EmployeesService {
       notes: dto.notes || '',
     });
 
-    return { message: 'Employee terminated and settlement recorded', settlement };
+    return {
+      message: 'Employee terminated and settlement recorded',
+      settlement,
+    };
   }
 
   /**
@@ -277,7 +407,21 @@ export class EmployeesService {
 
     const linkedUserId = emp.userId?.toString();
     if (currentUserId && linkedUserId === currentUserId) {
-      throw new ForbiddenException('You cannot permanently delete your own account');
+      throw new ForbiddenException(
+        'You cannot permanently delete your own account',
+      );
+    }
+
+    // Block hard-delete if the employee has any payroll history. The admin
+    // must delete each payroll first (UI offers a per-payroll Delete) so
+    // linked Finance expenses stay consistent.
+    const payrollCount = await this.payrollModel.countDocuments({
+      employeeId: emp._id,
+    });
+    if (payrollCount > 0) {
+      throw new BadRequestException(
+        `Cannot permanently delete: employee has ${payrollCount} payroll record(s). Delete or unlink them first.`,
+      );
     }
 
     await this.employeeModel.findByIdAndDelete(id);
