@@ -21,7 +21,10 @@ import {
   UpdatePayrollDto,
   UpsertPayrollConfigDto,
 } from './dto/payroll.dto';
-import { calculateBaseAmount } from '../finance/validators/finance.validators';
+import {
+  calculateBaseAmount,
+  getMonthDateRange,
+} from '../finance/validators/finance.validators';
 import { BASE_CURRENCY } from '../finance/constants/currency.constants';
 import {
   calculateCycleDates,
@@ -796,20 +799,145 @@ export class PayrollService {
   }
 
   /**
-   * Clean up all salary expenses — delete them all so they can be re-recorded correctly
-   * This fixes cases where old expenses were recorded with wrong dates or counts
+   * Clean up salary expenses. Pass `month`/`year` to limit the cleanup to a
+   * single payroll month — otherwise every salary expense is removed.
+   *
+   * Scoping logic:
+   *   1. Delete the salary expenses whose `date` falls inside the month range.
+   *   2. Reset every payroll that linked to one of the deleted expenses so it
+   *      can be re-recorded. If no month is supplied we reset every recorded
+   *      payroll to match the legacy behaviour.
    */
-  async cleanOldExpenses(): Promise<{ deletedCount: number }> {
-    const result = await this.expenseModel.deleteMany({
-      category: 'salaries',
-    });
+  async cleanOldExpenses(
+    month?: number,
+    year?: number,
+  ): Promise<{ deletedCount: number; resetPayrolls: number; scope: string }> {
+    const filter: Record<string, any> = { category: 'salaries' };
 
-    // Reset all payrolls so they can be re-recorded
-    await this.payrollModel.updateMany(
-      { isRecordedAsExpense: true },
+    if (month && year) {
+      const { start, end } = getMonthDateRange(month, year);
+      filter.date = { $gte: start, $lte: end };
+    }
+
+    // Capture which expense IDs we're about to delete so we can detach the
+    // exact payrolls that referenced them (rather than nuking every payroll).
+    const expensesToDelete = await this.expenseModel
+      .find(filter)
+      .select('_id')
+      .lean();
+    const expenseIds = expensesToDelete.map((e) => e._id);
+
+    const result = await this.expenseModel.deleteMany(filter);
+
+    const payrollResetFilter =
+      month && year
+        ? { isRecordedAsExpense: true, expenseId: { $in: expenseIds } }
+        : { isRecordedAsExpense: true };
+
+    const resetResult = await this.payrollModel.updateMany(
+      payrollResetFilter,
       { $set: { isRecordedAsExpense: false, expenseId: null } },
     );
 
-    return { deletedCount: result.deletedCount || 0 };
+    return {
+      deletedCount: result.deletedCount || 0,
+      resetPayrolls: resetResult.modifiedCount || 0,
+      scope: month && year ? `${month}/${year}` : 'all',
+    };
+  }
+
+  /**
+   * Return the payroll breakdown behind a salary expense — one row per
+   * employee with bonuses, commissions, deductions, KPI, net salary, and the
+   * transfer screenshot used as payment receipt.
+   */
+  async getExpensePayrollDetails(expenseId: string): Promise<{
+    expense: any;
+    payrolls: any[];
+    totals: {
+      baseSalary: number;
+      bonuses: number;
+      commissions: number;
+      deductions: number;
+      kpiAmount: number;
+      netSalary: number;
+    };
+  }> {
+    const expense = await this.expenseModel.findById(expenseId).lean();
+    if (!expense) throw new NotFoundException('Expense not found');
+    if (expense.category !== 'salaries') {
+      throw new BadRequestException(
+        'Payroll details are only available for salary expenses',
+      );
+    }
+
+    const payrolls = await this.payrollModel
+      .find({ expenseId: new Types.ObjectId(expenseId) })
+      .populate({
+        path: 'employeeId',
+        select: 'name employeeId userId',
+        populate: { path: 'userId', select: 'name email' },
+      })
+      .lean();
+
+    const rows = payrolls.map((p: any) => {
+      const emp = p.employeeId;
+      const employeeName =
+        emp?.name || emp?.userId?.name || 'Unknown employee';
+      return {
+        _id: p._id,
+        employeeName,
+        employeeCode: emp?.employeeId ?? '',
+        email: emp?.userId?.email ?? '',
+        month: p.month,
+        year: p.year,
+        currency: p.currency,
+        exchangeRate: p.exchangeRate,
+        baseSalary: p.baseSalary,
+        proratedBaseSalary: p.proratedBaseSalary,
+        baseProratedBaseSalary: p.baseProratedBaseSalary,
+        bonuses: p.bonuses,
+        baseBonuses: p.baseBonuses,
+        commissions: p.commissions,
+        baseCommissions: p.baseCommissions,
+        deductions: p.deductions,
+        baseDeductions: p.baseDeductions,
+        maxKpi: p.maxKpi,
+        kpiPercentage: p.kpiPercentage,
+        kpiAmount: p.kpiAmount,
+        baseKpiAmount: p.baseKpiAmount,
+        workedDays: p.workedDays,
+        totalCycleDays: p.totalCycleDays,
+        isProrated: p.isProrated,
+        netSalary: p.netSalary,
+        status: p.status,
+        paidAt: p.paidAt,
+        paymentDate: p.paymentDate,
+        transferScreenshot: p.transferScreenshot,
+        transactionNumber: p.transactionNumber,
+      };
+    });
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.baseSalary += r.baseProratedBaseSalary || 0;
+        acc.bonuses += r.baseBonuses || 0;
+        acc.commissions += r.baseCommissions || 0;
+        acc.deductions += r.baseDeductions || 0;
+        acc.kpiAmount += r.baseKpiAmount || 0;
+        acc.netSalary += r.netSalary || 0;
+        return acc;
+      },
+      {
+        baseSalary: 0,
+        bonuses: 0,
+        commissions: 0,
+        deductions: 0,
+        kpiAmount: 0,
+        netSalary: 0,
+      },
+    );
+
+    return { expense, payrolls: rows, totals };
   }
 }

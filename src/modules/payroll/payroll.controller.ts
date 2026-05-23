@@ -139,10 +139,23 @@ export class PayrollController {
   @Post('clean-old-expenses')
   @RequirePermissions('payroll:update')
   @ApiOperation({
-    summary: 'Delete all old/duplicate salary expenses from Finance',
+    summary:
+      'Delete salary expenses from Finance. Pass month+year to scope the cleanup; omit both to clean every month.',
   })
-  cleanOldExpenses() {
-    return this.payrollService.cleanOldExpenses();
+  cleanOldExpenses(@Body() body: { month?: number; year?: number } = {}) {
+    return this.payrollService.cleanOldExpenses(body.month, body.year);
+  }
+
+  @Get('expense/:expenseId/details')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({
+    summary:
+      'Get the payroll breakdown (per-employee bonuses, deductions, KPI, net, receipt) for a salary expense',
+  })
+  getExpensePayrollDetails(
+    @Param('expenseId', ParseObjectIdPipe) expenseId: string,
+  ) {
+    return this.payrollService.getExpensePayrollDetails(expenseId);
   }
 
   @Get(':id')

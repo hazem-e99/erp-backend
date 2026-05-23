@@ -25,6 +25,7 @@ import { EmailModule } from './modules/email/email.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { PaymentNotificationsModule } from './modules/payment-notifications/payment-notifications.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { BackupModule } from './modules/backup/backup.module';
     RemindersModule,
     AuditModule,
     BackupModule,
+    PaymentNotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

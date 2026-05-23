@@ -251,6 +251,88 @@ export class AnnouncementsService {
     return { message: 'All notifications marked as read' };
   }
 
+  /**
+   * Create system notifications for a set of users (used by schedulers).
+   * Respects a `dedupKey` so the same scheduled reminder fired multiple times
+   * by the cron only creates one row per user.
+   */
+  async createSystemNotifications(params: {
+    userIds: string[];
+    title: string;
+    message: string;
+    type:
+      | 'system'
+      | 'payroll'
+      | 'installment'
+      | 'payment'
+      | 'announcement'
+      | 'task'
+      | 'leave';
+    link?: string | null;
+    dedupKey?: string | null;
+  }): Promise<{ created: number }> {
+    const uniqueIds = [...new Set(params.userIds)].filter(Boolean);
+    if (uniqueIds.length === 0) return { created: 0 };
+
+    if (params.dedupKey) {
+      // Filter out users that already have a notification with this dedupKey.
+      const existing = await this.notificationModel
+        .find({
+          dedupKey: params.dedupKey,
+          userId: {
+            $in: uniqueIds.map((id) => new Types.ObjectId(id)),
+          },
+        })
+        .select('userId')
+        .lean();
+      const existingSet = new Set(existing.map((n) => n.userId.toString()));
+      const remaining = uniqueIds.filter((id) => !existingSet.has(id));
+      if (remaining.length === 0) return { created: 0 };
+      const docs = remaining.map((userId) => ({
+        userId: new Types.ObjectId(userId),
+        title: params.title,
+        message: params.message,
+        type: params.type,
+        link: params.link ?? null,
+        dedupKey: params.dedupKey ?? null,
+        isRead: false,
+      }));
+      await this.notificationModel.insertMany(docs);
+      return { created: docs.length };
+    }
+
+    const docs = uniqueIds.map((userId) => ({
+      userId: new Types.ObjectId(userId),
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      link: params.link ?? null,
+      isRead: false,
+    }));
+    await this.notificationModel.insertMany(docs);
+    return { created: docs.length };
+  }
+
+  /**
+   * Resolve users that should receive a finance/payroll notification, by
+   * looking up which active users have any of the given permission strings on
+   * their role. Falls back to system admins when nobody matches.
+   */
+  async resolveUsersByPermission(permissions: string[]): Promise<string[]> {
+    if (!permissions || permissions.length === 0) return [];
+
+    const roles = await this.roleModel
+      .find({ permissions: { $in: permissions } })
+      .select('_id');
+    const roleIds = roles.map((r) => r._id);
+
+    const users = await this.userModel
+      .find({ role: { $in: roleIds }, isActive: true })
+      .select('_id');
+
+    return users.map((u) => u._id.toString());
+  }
+
   async deleteNotification(notificationId: string, userId: string) {
     const n = await this.notificationModel.findOneAndDelete({
       _id: notificationId,
