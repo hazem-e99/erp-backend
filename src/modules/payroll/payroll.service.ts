@@ -643,27 +643,47 @@ export class PayrollService {
   }
 
   /**
-   * Mark all paid payrolls as expenses and create a single expense record
+   * Mark all paid payrolls as expenses and create a single expense record.
+   *
+   * IMPORTANT: orphan payrolls (employee was deleted) are *excluded* from
+   * both the count and the total. The Payroll page in the UI hides them via
+   * `findAll`, so including them here would create a Finance expense whose
+   * value the operator never saw on screen — the very mismatch that produced
+   * $107,526.66 in the button vs $109,510 in the expense doc. After the
+   * skip we populate the employeeId to filter null refs out client-side
+   * (the same trick `findAll` uses).
    */
   async markAsExpenses(
     month?: number,
     year?: number,
     expenseDate?: string,
-  ): Promise<{ total: number; count: number; expense: any }> {
+  ): Promise<{ total: number; count: number; skippedOrphans: number; expense: any }> {
     const targetMonth = Number(month ?? new Date().getMonth() + 1);
     const targetYear = Number(year ?? new Date().getFullYear());
 
     // Find paid payrolls for the SELECTED month/year ONLY that are not yet recorded
-    const pendingPayrolls = await this.payrollModel.find({
-      status: 'paid',
-      isRecordedAsExpense: false,
-      month: targetMonth,
-      year: targetYear,
-    });
+    const allCandidates = await this.payrollModel
+      .find({
+        status: 'paid',
+        isRecordedAsExpense: false,
+        month: targetMonth,
+        year: targetYear,
+      })
+      .populate({ path: 'employeeId', select: '_id' });
+
+    // Drop orphans — payrolls whose employee was deleted. They show as null
+    // after populate. Keeping them would inflate the expense.
+    const pendingPayrolls = allCandidates.filter(
+      (p: any) => p.employeeId != null,
+    );
+    const skippedOrphans = allCandidates.length - pendingPayrolls.length;
 
     if (pendingPayrolls.length === 0) {
       throw new NotFoundException(
-        `No paid payrolls to record as expenses for ${targetMonth}/${targetYear}`,
+        `No paid payrolls to record as expenses for ${targetMonth}/${targetYear}` +
+          (skippedOrphans > 0
+            ? ` (${skippedOrphans} orphan payroll(s) skipped — employee deleted)`
+            : ''),
       );
     }
 
@@ -708,6 +728,7 @@ export class PayrollService {
     return {
       total: totalBaseAmount,
       count: pendingPayrolls.length,
+      skippedOrphans,
       expense,
     };
   }
