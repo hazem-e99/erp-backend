@@ -164,7 +164,15 @@ export class PayrollService {
     const deductions = dto.deductions ?? 0;
     const maxKpi = dto.maxKpi ?? employee.maxKpi ?? 0;
     const kpiPercentage = dto.kpiPercentage ?? 0;
-    const kpiAmount = parseFloat(((maxKpi * kpiPercentage) / 100).toFixed(2));
+    // KPI is prorated with workedDays — a mid-cycle joiner shouldn't take a
+    // full month's KPI while their base salary is already prorated.
+    const kpiFraction =
+      workedDays > 0
+        ? Math.min(SALARY_DAYS_PER_MONTH, workedDays) / SALARY_DAYS_PER_MONTH
+        : 0;
+    const kpiAmount = parseFloat(
+      (((maxKpi * kpiPercentage) / 100) * kpiFraction).toFixed(2),
+    );
 
     const baseBonuses = calculateBaseAmount(bonuses, exchangeRate);
     const baseCommissions = calculateBaseAmount(commissions, exchangeRate);
@@ -173,15 +181,14 @@ export class PayrollService {
     const baseKpiAmount = calculateBaseAmount(kpiAmount, exchangeRate);
 
     // ── Net salary (always in base currency) ──────────────────────────────────
-    const netSalary = parseFloat(
-      (
-        baseProratedBaseSalary +
-        baseBonuses +
-        baseCommissions -
-        baseDeductions +
-        baseKpiAmount
-      ).toFixed(2),
-    );
+    // Floor at 0 — over-deduction shouldn't roll into a negative expense.
+    const rawNet =
+      baseProratedBaseSalary +
+      baseBonuses +
+      baseCommissions -
+      baseDeductions +
+      baseKpiAmount;
+    const netSalary = parseFloat(Math.max(0, rawNet).toFixed(2));
 
     // ── Breakdown ────────────────────────────────────────────────────────────
     const cycleStartStr = cycleStart.toISOString().split('T')[0];
@@ -310,6 +317,9 @@ export class PayrollService {
     const payroll = await this.payrollModel.findById(id);
     if (!payroll) throw new NotFoundException('Payroll not found');
 
+    // The payroll's recorded exchangeRate is *frozen at generation time*. We
+    // never refresh it from the employee on update — otherwise a rate change
+    // would silently rewrite history for an already-paid payroll.
     const exchangeRate = payroll.exchangeRate || 1;
 
     if (dto.bonuses !== undefined) {
@@ -352,31 +362,84 @@ export class PayrollService {
     }
     if (dto.notes) payroll.notes = dto.notes;
 
-    // Recalculate KPI amount (in original currency)
+    // ── Re-run proration when the payroll is not yet paid ────────────────────
+    // A paid payroll is treated as immutable history: we never touch its
+    // workedDays / proratedBaseSalary so a downstream change to
+    // dateOfJoining or terminationDate cannot rewrite money that already
+    // left the bank. Draft/processed payrolls *do* re-run so any HR fix
+    // (joining date, last working day) is reflected before payment.
+    if (
+      payroll.status !== 'paid' &&
+      (payroll as any).cycleStart &&
+      (payroll as any).cycleEnd
+    ) {
+      const emp = await this.employeeModel.findById(payroll.employeeId);
+      if (emp) {
+        const joinDate =
+          emp.dateOfJoining ?? new Date(Date.UTC(2000, 0, 1));
+        const terminationDate: Date | null =
+          (emp as any).terminationDate ?? null;
+
+        const { workedDays, isProrated } = calculateWorkedDays(
+          (payroll as any).cycleStart,
+          (payroll as any).cycleEnd,
+          joinDate,
+          terminationDate,
+        );
+
+        const dailyRate = parseFloat(
+          (payroll.baseSalary / SALARY_DAYS_PER_MONTH).toFixed(4),
+        );
+        const proratedBaseSalary = parseFloat(
+          (dailyRate * workedDays).toFixed(2),
+        );
+        const baseProratedBaseSalary = parseFloat(
+          (proratedBaseSalary * exchangeRate).toFixed(2),
+        );
+
+        (payroll as any).workedDays = parseFloat(workedDays.toFixed(4));
+        (payroll as any).isProrated = isProrated;
+        (payroll as any).dailyRate = dailyRate;
+        (payroll as any).proratedBaseSalary = proratedBaseSalary;
+        (payroll as any).baseProratedBaseSalary = baseProratedBaseSalary;
+      }
+    }
+
+    // ── KPI amount: prorated by workedDays/30 ────────────────────────────────
+    // A mid-cycle joiner shouldn't take a full month's KPI bonus while their
+    // base salary is already prorated. We use the (now possibly refreshed)
+    // workedDays from the payroll. For legacy payrolls without workedDays
+    // we fall back to the full amount so old records stay stable.
+    const workedDaysForKpi =
+      (payroll as any).workedDays && (payroll as any).workedDays > 0
+        ? Math.min(SALARY_DAYS_PER_MONTH, (payroll as any).workedDays)
+        : SALARY_DAYS_PER_MONTH;
+    const kpiFraction = workedDaysForKpi / SALARY_DAYS_PER_MONTH;
+
     payroll.kpiAmount = parseFloat(
-      ((payroll.maxKpi * payroll.kpiPercentage) / 100).toFixed(2),
+      (((payroll.maxKpi * payroll.kpiPercentage) / 100) * kpiFraction).toFixed(2),
     );
     payroll.baseKpiAmount = calculateBaseAmount(
       payroll.kpiAmount,
       exchangeRate,
     );
 
-    // Recalculate net salary
-    // New-style payroll has cycleStart set; use baseProratedBaseSalary (may legitimately be 0).
+    // ── Net salary ──────────────────────────────────────────────────────────
+    // New-style payroll has cycleStart set; use baseProratedBaseSalary (may
+    // legitimately be 0 — e.g. employee left before cycle start).
     // Legacy payroll (cycleStart is null) falls back to full baseBaseSalary.
     const effectiveProratedBase =
       (payroll as any).cycleStart != null
         ? ((payroll as any).baseProratedBaseSalary ?? 0)
         : payroll.baseBaseSalary;
-    payroll.netSalary = parseFloat(
-      (
-        effectiveProratedBase +
-        payroll.baseBonuses +
-        payroll.baseCommissions -
-        payroll.baseDeductions +
-        payroll.baseKpiAmount
-      ).toFixed(2),
-    );
+    const rawNet =
+      effectiveProratedBase +
+      payroll.baseBonuses +
+      payroll.baseCommissions -
+      payroll.baseDeductions +
+      payroll.baseKpiAmount;
+    // Floor at 0 — over-deduction shouldn't roll into a negative expense.
+    payroll.netSalary = parseFloat(Math.max(0, rawNet).toFixed(2));
 
     await payroll.save();
 
@@ -390,6 +453,11 @@ export class PayrollService {
         manualDeductions: payroll.deductions,
         kpiPercentage: payroll.kpiPercentage,
         kpiAmount: payroll.kpiAmount,
+        // Include the re-prorated values so the snapshot reflects the same
+        // numbers the UI is rendering after an HR-driven joining-date fix.
+        workedDays: parseFloat(((payroll as any).workedDays ?? 0).toFixed(4)),
+        isProrated: (payroll as any).isProrated,
+        proratedBaseSalary: (payroll as any).proratedBaseSalary,
         netSalary: payroll.netSalary,
       };
       payroll.markModified('breakdown');
@@ -707,6 +775,179 @@ export class PayrollService {
       count: pendingPayrolls.length,
       expense,
     };
+  }
+
+  /**
+   * Compare every recorded salary expense (for a month or all months) against
+   * the payrolls linked to it. Returns a per-expense breakdown so the UI can
+   * flag drift and offer a one-click fix.
+   *
+   * "Drift" usually means an `update()`/`remove()` ran while `syncLinkedExpense`
+   * could not complete (e.g. process restart) or pre-fix data from when the
+   * sync wasn't wired up yet.
+   */
+  async getReconciliationStatus(
+    month?: number,
+    year?: number,
+  ): Promise<{
+    expenses: Array<{
+      expenseId: string;
+      month: number | null;
+      year: number | null;
+      expenseAmount: number;
+      payrollSum: number;
+      diff: number;
+      payrollCount: number;
+      orphanPayrolls: number;
+      missingExpense: boolean;
+    }>;
+    totalDrift: number;
+  }> {
+    const expenseFilter: Record<string, any> = { category: 'salaries' };
+    if (month && year) {
+      const { start, end } = getMonthDateRange(month, year);
+      expenseFilter.date = { $gte: start, $lte: end };
+    }
+
+    const expenses = await this.expenseModel.find(expenseFilter).lean();
+
+    const breakdown: Array<{
+      expenseId: string;
+      month: number | null;
+      year: number | null;
+      expenseAmount: number;
+      payrollSum: number;
+      diff: number;
+      payrollCount: number;
+      orphanPayrolls: number;
+      missingExpense: boolean;
+    }> = [];
+
+    let totalDrift = 0;
+
+    for (const exp of expenses) {
+      const payrolls = await this.payrollModel
+        .find({ expenseId: exp._id, isRecordedAsExpense: true })
+        .select('netSalary month year')
+        .lean();
+
+      const payrollSum = parseFloat(
+        payrolls.reduce((s, p) => s + (p.netSalary ?? 0), 0).toFixed(2),
+      );
+      const diff = parseFloat((payrollSum - (exp.baseAmount ?? 0)).toFixed(2));
+
+      // Detect "orphan" payrolls — pointing at an expense that no longer
+      // exists. The find above already filters to live expenses, so we only
+      // see them when we look at all expenseIds. Done in a separate sweep
+      // below for the "all" case.
+
+      breakdown.push({
+        expenseId: exp._id.toString(),
+        month: payrolls[0]?.month ?? null,
+        year: payrolls[0]?.year ?? null,
+        expenseAmount: exp.baseAmount ?? 0,
+        payrollSum,
+        diff,
+        payrollCount: payrolls.length,
+        orphanPayrolls: 0,
+        missingExpense: false,
+      });
+
+      if (Math.abs(diff) > 0.01) totalDrift += Math.abs(diff);
+    }
+
+    // Sweep for payrolls flagged as recorded but pointing at a vanished
+    // expense (the inverse drift). One row per unique expenseId.
+    const ghostPayrolls = await this.payrollModel
+      .aggregate([
+        { $match: { isRecordedAsExpense: true, expenseId: { $ne: null } } },
+        {
+          $lookup: {
+            from: 'expenses',
+            localField: 'expenseId',
+            foreignField: '_id',
+            as: 'expense',
+          },
+        },
+        { $match: { expense: { $size: 0 } } },
+        {
+          $group: {
+            _id: '$expenseId',
+            total: { $sum: '$netSalary' },
+            count: { $sum: 1 },
+            month: { $first: '$month' },
+            year: { $first: '$year' },
+          },
+        },
+      ])
+      .exec();
+
+    for (const ghost of ghostPayrolls) {
+      breakdown.push({
+        expenseId: ghost._id?.toString() ?? '',
+        month: ghost.month ?? null,
+        year: ghost.year ?? null,
+        expenseAmount: 0,
+        payrollSum: parseFloat((ghost.total ?? 0).toFixed(2)),
+        diff: parseFloat((ghost.total ?? 0).toFixed(2)),
+        payrollCount: ghost.count,
+        orphanPayrolls: ghost.count,
+        missingExpense: true,
+      });
+      totalDrift += Math.abs(ghost.total ?? 0);
+    }
+
+    return { expenses: breakdown, totalDrift: parseFloat(totalDrift.toFixed(2)) };
+  }
+
+  /**
+   * Force-resync every salary expense from its linked payrolls. Use after
+   * `getReconciliationStatus` flags drift. Safe to run repeatedly.
+   */
+  async reconcileAllExpenses(): Promise<{
+    fixed: number;
+    deleted: number;
+    cleanedGhosts: number;
+  }> {
+    let fixed = 0;
+    let deleted = 0;
+
+    const expenses = await this.expenseModel
+      .find({ category: 'salaries' })
+      .select('_id')
+      .lean();
+
+    for (const exp of expenses) {
+      const result = await this.syncLinkedExpense(exp._id);
+      if (!result.expenseExists) deleted += 1;
+      else fixed += 1;
+    }
+
+    // Clean up payroll rows pointing at deleted expenses
+    const ghostPayrolls = await this.payrollModel
+      .aggregate([
+        { $match: { isRecordedAsExpense: true, expenseId: { $ne: null } } },
+        {
+          $lookup: {
+            from: 'expenses',
+            localField: 'expenseId',
+            foreignField: '_id',
+            as: 'expense',
+          },
+        },
+        { $match: { expense: { $size: 0 } } },
+        { $project: { _id: 1 } },
+      ])
+      .exec();
+
+    if (ghostPayrolls.length > 0) {
+      await this.payrollModel.updateMany(
+        { _id: { $in: ghostPayrolls.map((g) => g._id) } },
+        { $set: { isRecordedAsExpense: false, expenseId: null } },
+      );
+    }
+
+    return { fixed, deleted, cleanedGhosts: ghostPayrolls.length };
   }
 
   /**

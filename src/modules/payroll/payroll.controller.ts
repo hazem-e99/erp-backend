@@ -136,6 +136,32 @@ export class PayrollController {
     return this.payrollService.unlinkExpense(body.month, body.year);
   }
 
+  @Get('reconciliation-status')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({
+    summary:
+      'Compare salary expenses against their linked payrolls and report drift',
+  })
+  getReconciliationStatus(
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.payrollService.getReconciliationStatus(
+      month ? Number(month) : undefined,
+      year ? Number(year) : undefined,
+    );
+  }
+
+  @Post('reconcile-expenses')
+  @RequirePermissions('payroll:update')
+  @ApiOperation({
+    summary:
+      'Force-resync every salary expense from its linked payrolls and clean orphan references',
+  })
+  reconcileAllExpenses() {
+    return this.payrollService.reconcileAllExpenses();
+  }
+
   @Post('clean-old-expenses')
   @RequirePermissions('payroll:update')
   @ApiOperation({
