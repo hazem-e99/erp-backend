@@ -901,6 +901,119 @@ export class PayrollService {
   }
 
   /**
+   * Sum the *actual* salary expense documents that landed inside a payroll
+   * month. We resolve the cycle's payment-date so a payroll generated in
+   * May but paid on May 25 lands in the May bucket regardless of when the
+   * operator clicked "Mark as Expenses".
+   *
+   * Why a backend endpoint? The Payroll page in the UI was previously
+   * summing `netSalary` from the payrolls returned by `/payroll?month=…`,
+   * which is the wrong source: it ignores cross-month linkage and drift in
+   * the expense doc itself. This method returns what Finance actually sees.
+   */
+  async getRecordedExpenseTotalForMonth(
+    month: number,
+    year: number,
+  ): Promise<{ total: number; expenseCount: number }> {
+    const { start, end } = getMonthDateRange(month, year);
+    const result = await this.expenseModel.aggregate([
+      {
+        $match: {
+          category: 'salaries',
+          date: { $gte: start, $lte: end },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$baseAmount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const row = result[0];
+    return {
+      total: parseFloat((row?.total ?? 0).toFixed(2)),
+      expenseCount: row?.count ?? 0,
+    };
+  }
+
+  /**
+   * Deep debug dump for a single salary expense — returns the expense doc, every
+   * payroll currently pointing at it (with employee name + netSalary), and an
+   * explicit per-row diff so we can see *where* the drift comes from.
+   */
+  async debugExpenseBreakdown(expenseId: string) {
+    const expense = await this.expenseModel.findById(expenseId).lean();
+    if (!expense) throw new NotFoundException('Expense not found');
+
+    const linkedPayrolls = await this.payrollModel
+      .find({ expenseId: new Types.ObjectId(expenseId), isRecordedAsExpense: true })
+      .populate({
+        path: 'employeeId',
+        select: 'name employeeId userId',
+        populate: { path: 'userId', select: 'name' },
+      })
+      .lean();
+
+    const rows = linkedPayrolls.map((p: any) => ({
+      payrollId: p._id.toString(),
+      employeeName: p.employeeId?.name || p.employeeId?.userId?.name || 'Unknown',
+      employeeCode: p.employeeId?.employeeId ?? '',
+      month: p.month,
+      year: p.year,
+      status: p.status,
+      isProrated: p.isProrated,
+      workedDays: p.workedDays,
+      baseProratedBaseSalary: p.baseProratedBaseSalary,
+      baseBonuses: p.baseBonuses,
+      baseCommissions: p.baseCommissions,
+      baseDeductions: p.baseDeductions,
+      baseKpiAmount: p.baseKpiAmount,
+      netSalary: p.netSalary,
+      // What netSalary *should* equal given the stored components:
+      computedNet: parseFloat(
+        Math.max(
+          0,
+          (p.baseProratedBaseSalary ?? 0) +
+            (p.baseBonuses ?? 0) +
+            (p.baseCommissions ?? 0) -
+            (p.baseDeductions ?? 0) +
+            (p.baseKpiAmount ?? 0),
+        ).toFixed(2),
+      ),
+    }));
+
+    const sumOfNetSalaries = parseFloat(
+      rows.reduce((s, r) => s + (r.netSalary ?? 0), 0).toFixed(2),
+    );
+    const sumOfComputedNets = parseFloat(
+      rows.reduce((s, r) => s + r.computedNet, 0).toFixed(2),
+    );
+
+    return {
+      expense: {
+        _id: expense._id.toString(),
+        baseAmount: expense.baseAmount,
+        amount: expense.amount,
+        category: expense.category,
+        date: expense.date,
+        description: expense.description,
+      },
+      payrollCount: rows.length,
+      sumOfNetSalaries,
+      sumOfComputedNets,
+      diffExpenseVsNetSum: parseFloat(
+        (sumOfNetSalaries - (expense.baseAmount ?? 0)).toFixed(2),
+      ),
+      diffNetVsComputed: parseFloat(
+        (sumOfComputedNets - sumOfNetSalaries).toFixed(2),
+      ),
+      rows,
+    };
+  }
+
+  /**
    * Force-resync every salary expense from its linked payrolls. Use after
    * `getReconciliationStatus` flags drift. Safe to run repeatedly.
    */

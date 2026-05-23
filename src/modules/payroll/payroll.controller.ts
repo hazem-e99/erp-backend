@@ -136,6 +136,22 @@ export class PayrollController {
     return this.payrollService.unlinkExpense(body.month, body.year);
   }
 
+  @Get('recorded-expense-total')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({
+    summary:
+      "Sum the salary expense documents that landed inside a payroll month — the value Finance actually shows",
+  })
+  getRecordedExpenseTotalForMonth(
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    return this.payrollService.getRecordedExpenseTotalForMonth(
+      Number(month),
+      Number(year),
+    );
+  }
+
   @Get('reconciliation-status')
   @RequirePermissions('payroll:read')
   @ApiOperation({
@@ -150,6 +166,18 @@ export class PayrollController {
       month ? Number(month) : undefined,
       year ? Number(year) : undefined,
     );
+  }
+
+  @Get('debug-expense/:expenseId')
+  @RequirePermissions('payroll:read')
+  @ApiOperation({
+    summary:
+      'Deep debug dump for a salary expense — returns linked payrolls and per-row diffs',
+  })
+  debugExpenseBreakdown(
+    @Param('expenseId', ParseObjectIdPipe) expenseId: string,
+  ) {
+    return this.payrollService.debugExpenseBreakdown(expenseId);
   }
 
   @Post('reconcile-expenses')
