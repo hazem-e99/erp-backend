@@ -53,6 +53,9 @@ export class Payment {
   @Prop({ default: '' })
   notes!: string;
 
+  @Prop({ required: true })
+  attachmentUrl!: string;
+
   // overflow amount applied to next installment(s)
   @Prop({ default: 0 })
   overpaymentAmount!: number;

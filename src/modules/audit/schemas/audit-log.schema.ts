@@ -4,6 +4,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 export type AuditLogDocument = AuditLog & Document;
 
 export enum AuditAction {
+  READ = 'read',
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
@@ -16,6 +17,8 @@ export enum AuditAction {
   SEND = 'send',
   UPLOAD = 'upload',
   DOWNLOAD = 'download',
+  IMPORT = 'import',
+  OTHER = 'other',
 }
 
 export enum AuditEntity {
@@ -36,6 +39,15 @@ export enum AuditEntity {
   DEPARTMENT = 'department',
   POSITION = 'position',
   REMINDER = 'reminder',
+  NOTIFICATION = 'notification',
+  CONTRACT_TYPE = 'contract_type',
+  COMMISSION = 'commission',
+  INSTALLMENT = 'installment',
+  REPORT = 'report',
+  BACKUP = 'backup',
+  DOCUMENT = 'document',
+  SETTINGS = 'settings',
+  SYSTEM = 'system',
 }
 
 export enum AuditStatus {
@@ -45,8 +57,8 @@ export enum AuditStatus {
 
 @Schema({ timestamps: true })
 export class AuditLog {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  userId!: MongooseSchema.Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
+  userId?: MongooseSchema.Types.ObjectId;
 
   @Prop({ required: true })
   userEmail!: string;

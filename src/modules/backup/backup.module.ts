@@ -23,6 +23,8 @@ import {
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Role, RoleSchema } from '../roles/schemas/role.schema';
 import { AuditModule } from '../audit/audit.module';
+import { DriveAttachmentsController } from './drive-attachments.controller';
+import { DriveAttachmentsService } from './drive-attachments.service';
 
 @Module({
   imports: [
@@ -47,6 +49,7 @@ import { AuditModule } from '../audit/audit.module';
     BackupController,
     GoogleOAuthController,
     BackupTriggerController,
+    DriveAttachmentsController,
   ],
   providers: [
     BackupService,
@@ -56,6 +59,7 @@ import { AuditModule } from '../audit/audit.module';
     LocalStorage,
     TokenCryptoService,
     MaintenanceLockService,
+    DriveAttachmentsService,
     {
       provide: BACKUP_STORAGE,
       inject: [ConfigService, GoogleDriveStorage, LocalStorage],
@@ -72,6 +76,11 @@ import { AuditModule } from '../audit/audit.module';
       },
     },
   ],
-  exports: [BackupService, MaintenanceLockService, GoogleDriveStorage],
+  exports: [
+    BackupService,
+    MaintenanceLockService,
+    GoogleDriveStorage,
+    DriveAttachmentsService,
+  ],
 })
 export class BackupModule {}

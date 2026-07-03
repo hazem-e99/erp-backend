@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MulterModule } from '@nestjs/platform-express';
-import { join } from 'path';
 import { PayrollService } from './payroll.service';
 import { PayrollController } from './payroll.controller';
 import { CommissionService } from './commission.service';
@@ -14,9 +12,11 @@ import {
 import { Commission, CommissionSchema } from './schemas/commission.schema';
 import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { Expense, ExpenseSchema } from '../finance/schemas/expense.schema';
+import { BackupModule } from '../backup/backup.module';
 
 @Module({
   imports: [
+    BackupModule,
     MongooseModule.forFeature([
       { name: Payroll.name, schema: PayrollSchema },
       { name: PayrollConfig.name, schema: PayrollConfigSchema },
@@ -24,9 +24,6 @@ import { Expense, ExpenseSchema } from '../finance/schemas/expense.schema';
       { name: Employee.name, schema: EmployeeSchema },
       { name: Expense.name, schema: ExpenseSchema },
     ]),
-    MulterModule.register({
-      dest: join(process.cwd(), 'uploads', 'payroll'),
-    }),
   ],
   controllers: [CommissionController, PayrollController],
   providers: [PayrollService, CommissionService],

@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MulterModule } from '@nestjs/platform-express';
 import { ScheduleModule } from '@nestjs/schedule';
-import { join } from 'path';
 
 import {
   Subscription,
@@ -43,9 +41,6 @@ import { PayrollModule } from '../payroll/payroll.module';
       { name: Revenue.name, schema: RevenueSchema },
       { name: Expense.name, schema: ExpenseSchema },
     ]),
-    MulterModule.register({
-      dest: join(process.cwd(), 'uploads', 'expenses'),
-    }),
     ScheduleModule.forRoot(),
   ],
   controllers: [

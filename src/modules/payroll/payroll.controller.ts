@@ -13,8 +13,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PayrollService } from './payroll.service';
 import {
@@ -26,13 +25,17 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-objectid.pipe';
+import { DriveAttachmentsService } from '../backup/drive-attachments.service';
 
 @ApiTags('Payroll')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('payroll')
 export class PayrollController {
-  constructor(private payrollService: PayrollService) {}
+  constructor(
+    private payrollService: PayrollService,
+    private readonly attachments: DriveAttachmentsService,
+  ) {}
 
   // ── Payroll Config ──────────────────────────────────────────────────────────
 
@@ -140,7 +143,7 @@ export class PayrollController {
   @RequirePermissions('payroll:read')
   @ApiOperation({
     summary:
-      "Sum the salary expense documents that landed inside a payroll month — the value Finance actually shows",
+      'Sum the salary expense documents that landed inside a payroll month — the value Finance actually shows',
   })
   getRecordedExpenseTotalForMonth(
     @Query('month') month: string,
@@ -253,13 +256,7 @@ export class PayrollController {
   @RequirePermissions('payroll:update')
   @UseInterceptors(
     FileInterceptor('screenshot', {
-      storage: diskStorage({
-        destination: join(process.cwd(), 'uploads', 'payroll'),
-        filename: (req, file, cb) => {
-          const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
-          cb(null, uniqueName);
-        },
-      }),
+      storage: memoryStorage(),
       // Accept any file type — restriction caused legitimate uploads to be rejected
       limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
     }),
@@ -271,7 +268,7 @@ export class PayrollController {
     @Body('transactionNumber') transactionNumber?: string,
   ) {
     const screenshotPath = file
-      ? `/uploads/payroll/${file.filename}`
+      ? await this.attachments.upload(file, 'payroll')
       : undefined;
     return this.payrollService.update(id, {
       transferScreenshot: screenshotPath,

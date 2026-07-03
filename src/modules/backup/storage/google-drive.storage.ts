@@ -139,6 +139,8 @@ export class GoogleDriveStorage implements IBackupStorage, OnModuleInit {
       { upsert: true },
     );
     this.cachedSubscriptionDocsFolderId = null;
+    this.cachedAttachmentRootFolderId = null;
+    this.cachedAttachmentFolderIds.clear();
   }
 
   async getAccountInfo(): Promise<{
@@ -274,6 +276,8 @@ export class GoogleDriveStorage implements IBackupStorage, OnModuleInit {
 
   private cachedSubscriptionDocsFolderId: string | null = null;
   private subscriptionDocsFolderPromise: Promise<string> | null = null;
+  private cachedAttachmentRootFolderId: string | null = null;
+  private readonly cachedAttachmentFolderIds = new Map<string, string>();
 
   private async ensureSubscriptionDocsFolderId(): Promise<string> {
     if (this.cachedSubscriptionDocsFolderId) {
@@ -396,6 +400,123 @@ export class GoogleDriveStorage implements IBackupStorage, OnModuleInit {
       await drive.files.delete({ fileId: remoteKey });
     } catch (err: any) {
       if (err?.code === 404) return;
+      throw err;
+    }
+  }
+
+  private async ensureChildFolderId(
+    auth: OAuth2Client,
+    parentId: string,
+    folderName: string,
+  ): Promise<string> {
+    const drive = this.driveClient(auth);
+    const escapedName = folderName.replace(/'/g, "\\'");
+    const existing = await drive.files.list({
+      q: `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${escapedName}' and '${parentId}' in parents`,
+      fields: 'files(id,name)',
+      pageSize: 1,
+    });
+    const existingId = existing.data.files?.[0]?.id;
+    if (existingId) return existingId;
+
+    const created = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+      },
+      fields: 'id',
+    });
+    if (!created.data.id) {
+      throw new InternalServerErrorException(
+        `Failed to create Google Drive folder ${folderName}`,
+      );
+    }
+    return created.data.id;
+  }
+
+  private async ensureAttachmentFolderId(category: string): Promise<string> {
+    const cached = this.cachedAttachmentFolderIds.get(category);
+    if (cached) return cached;
+
+    const auth = await this.getAuthedClient();
+    if (!this.cachedAttachmentRootFolderId) {
+      this.cachedAttachmentRootFolderId = await this.ensureFolderId(
+        auth,
+        'ERP-Attachments',
+      );
+    }
+    const folderId = await this.ensureChildFolderId(
+      auth,
+      this.cachedAttachmentRootFolderId,
+      category,
+    );
+    this.cachedAttachmentFolderIds.set(category, folderId);
+    return folderId;
+  }
+
+  async uploadAttachment(
+    stream: Readable,
+    filename: string,
+    mimeType: string,
+    category: string,
+  ): Promise<UploadResult> {
+    try {
+      const folderId = await this.ensureAttachmentFolderId(category);
+      const auth = await this.getAuthedClient();
+      const drive = this.driveClient(auth);
+      const result = await drive.files.create({
+        requestBody: { name: filename, parents: [folderId] },
+        media: { mimeType, body: stream },
+        fields: 'id,size',
+      });
+      if (!result.data.id) {
+        throw new InternalServerErrorException(
+          'Drive attachment upload returned no file id',
+        );
+      }
+      return {
+        remoteKey: result.data.id,
+        sizeBytes: result.data.size ? Number(result.data.size) : 0,
+      };
+    } catch (err: any) {
+      if (err instanceof PreconditionFailedException) throw err;
+      await this.throwIfInvalidGrant(err);
+      this.logger.error(`Drive attachment upload failed: ${err.message}`);
+      throw new InternalServerErrorException(
+        `Drive attachment upload failed: ${err.message}`,
+      );
+    }
+  }
+
+  async openAttachment(remoteKey: string): Promise<{
+    stream: Readable;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+  }> {
+    const auth = await this.getAuthedClient();
+    const drive = this.driveClient(auth);
+    try {
+      const metadata = await drive.files.get({
+        fileId: remoteKey,
+        fields: 'id,name,mimeType,size,trashed',
+      });
+      if (!metadata.data.id || metadata.data.trashed) {
+        throw new Error('Attachment not found');
+      }
+      const response = await drive.files.get(
+        { fileId: remoteKey, alt: 'media' },
+        { responseType: 'stream' },
+      );
+      return {
+        stream: response.data as unknown as Readable,
+        originalName: metadata.data.name ?? 'attachment',
+        mimeType: metadata.data.mimeType ?? 'application/octet-stream',
+        sizeBytes: metadata.data.size ? Number(metadata.data.size) : 0,
+      };
+    } catch (err: any) {
+      await this.throwIfInvalidGrant(err);
       throw err;
     }
   }

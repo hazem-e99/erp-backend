@@ -13,7 +13,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: CORS_ORIGIN
-        value: "*"
+        value: '*'
       - key: MONGODUMP_BIN
         value: ./bin/mongodump
       - key: MONGORESTORE_BIN
@@ -29,6 +29,8 @@ services:
       - key: MONGO_URI
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: ATTACHMENT_SIGNING_SECRET
         sync: false
       - key: BACKUP_TRIGGER_SECRET
         sync: false

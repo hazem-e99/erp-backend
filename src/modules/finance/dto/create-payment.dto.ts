@@ -7,6 +7,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentMethod } from '../schemas/payment.schema';
 import { SupportedCurrency } from '../constants/currency.constants';
 import { IsFinancialAmount } from '../validators/finance.validators';
@@ -24,6 +25,7 @@ export class CreatePaymentDto {
   @IsString()
   clientName: string;
 
+  @Type(() => Number)
   @IsFinancialAmount(1_000_000, {
     message:
       'Payment amount must be greater than 0 and cannot exceed 1,000,000 (max 2 decimal places)',
@@ -36,6 +38,7 @@ export class CreatePaymentDto {
   })
   currency: SupportedCurrency;
 
+  @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 4 },
     {
@@ -65,6 +68,7 @@ export class CreatePaymentDto {
   notes?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 2 },
     {

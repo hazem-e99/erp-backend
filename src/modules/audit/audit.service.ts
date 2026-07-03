@@ -28,7 +28,7 @@ export class AuditService {
    * Simplified logging method for common use cases
    */
   async logAction(params: {
-    userId: string;
+    userId?: string;
     userEmail: string;
     userName: string;
     action: AuditAction;
@@ -51,7 +51,7 @@ export class AuditService {
    * Log failed action
    */
   async logFailure(params: {
-    userId: string;
+    userId?: string;
     userEmail: string;
     userName: string;
     action: AuditAction;
@@ -60,6 +60,10 @@ export class AuditService {
     errorMessage: string;
     ipAddress?: string;
     userAgent?: string;
+    description?: string;
+    oldData?: Record<string, any>;
+    newData?: Record<string, any>;
+    metadata?: Record<string, any>;
   }): Promise<AuditLog> {
     return this.log({
       ...params,

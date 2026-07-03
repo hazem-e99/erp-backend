@@ -13,8 +13,9 @@ import {
 } from '../schemas/audit-log.schema';
 
 export class CreateAuditLogDto {
+  @IsOptional()
   @IsMongoId()
-  userId!: string;
+  userId?: string;
 
   @IsString()
   userEmail!: string;

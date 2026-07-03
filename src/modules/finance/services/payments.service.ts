@@ -43,6 +43,7 @@ export class PaymentsService {
    */
   async create(
     dto: CreatePaymentDto,
+    attachmentUrl: string,
   ): Promise<{ payment: PaymentDocument; overflow: number }> {
     const installment = await this.installmentModel.findById(dto.installmentId);
     if (!installment) throw FinanceErrors.INSTALLMENT_NOT_FOUND();
@@ -121,6 +122,7 @@ export class PaymentsService {
       method: dto.method,
       reference: dto.reference ?? '',
       notes: dto.notes ?? '',
+      attachmentUrl,
       overpaymentAmount: overflowBase, // Overflow in base currency
       gateFeePercentage,
       gateFeeAmount,
@@ -156,12 +158,15 @@ export class PaymentsService {
         const overflowInOriginalCurrency = parseFloat(
           (overflowBase / dto.exchangeRate).toFixed(2),
         );
-        await this.create({
-          ...dto,
-          installmentId: nextInstallment._id.toString(),
-          amount: overflowInOriginalCurrency,
-          notes: `Overflow from previous payment`,
-        });
+        await this.create(
+          {
+            ...dto,
+            installmentId: nextInstallment._id.toString(),
+            amount: overflowInOriginalCurrency,
+            notes: `Overflow from previous payment`,
+          },
+          attachmentUrl,
+        );
       }
     }
 

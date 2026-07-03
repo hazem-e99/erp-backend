@@ -18,23 +18,15 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../../common/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
 import { ExpensesService } from '../services/expenses.service';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { UpdateExpenseDto } from '../dto/update-expense.dto';
 import { PaginationQueryDto } from '../dto/query.dto';
 import { ParseObjectIdPipe } from '../../../common/pipes/parse-objectid.pipe';
+import { DriveAttachmentsService } from '../../backup/drive-attachments.service';
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-
-const expenseFileStorage = diskStorage({
-  destination: join(process.cwd(), 'uploads', 'expenses'),
-  filename: (_req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `expense-${unique}${extname(file.originalname)}`);
-  },
-});
 
 const ensureWithinSize = (file?: Express.Multer.File) => {
   if (file && file.size > MAX_ATTACHMENT_BYTES) {
@@ -47,14 +39,17 @@ const ensureWithinSize = (file?: Express.Multer.File) => {
 @Controller('finance/expenses')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ExpensesController {
-  constructor(private readonly expensesService: ExpensesService) {}
+  constructor(
+    private readonly expensesService: ExpensesService,
+    private readonly attachments: DriveAttachmentsService,
+  ) {}
 
   @Post()
   @RequirePermissions('finance:create')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('attachment', {
-      storage: expenseFileStorage,
+      storage: memoryStorage(),
       limits: { fileSize: MAX_ATTACHMENT_BYTES },
     }),
   )
@@ -64,7 +59,7 @@ export class ExpensesController {
   ) {
     ensureWithinSize(file);
     const attachmentUrl = file
-      ? `/uploads/expenses/${file.filename}`
+      ? await this.attachments.upload(file, 'expenses')
       : undefined;
     return this.expensesService.create(dto, attachmentUrl);
   }
@@ -73,7 +68,7 @@ export class ExpensesController {
   @RequirePermissions('finance:update')
   @UseInterceptors(
     FileInterceptor('attachment', {
-      storage: expenseFileStorage,
+      storage: memoryStorage(),
       limits: { fileSize: MAX_ATTACHMENT_BYTES },
     }),
   )
@@ -84,7 +79,7 @@ export class ExpensesController {
   ) {
     ensureWithinSize(file);
     const attachmentUrl = file
-      ? `/uploads/expenses/${file.filename}`
+      ? await this.attachments.upload(file, 'expenses')
       : undefined;
     return this.expensesService.update(id, dto, attachmentUrl);
   }
