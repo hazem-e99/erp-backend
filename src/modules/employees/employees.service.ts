@@ -161,14 +161,22 @@ export class EmployeesService {
       filter.excludeFromPayroll = { $ne: true };
     }
 
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.min(1000, Math.max(1, Number(limit) || 20));
     const total = await this.employeeModel.countDocuments(filter);
     const employees = await this.employeeModel
       .find(filter)
       .populate({ path: 'userId', select: '-password' })
-      .skip((page - 1) * limit)
-      .limit(limit)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber)
       .sort({ createdAt: -1 });
-    return { data: employees, total, page: +page, limit: +limit };
+    return {
+      data: employees,
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+    };
   }
 
   async findById(id: string) {
