@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
+echo "==> Installing Node.js dependencies..."
+MONGOMS_DISABLE_POSTINSTALL=1 npm ci --include=dev
 
 echo "==> Installing MongoDB Database Tools..."
 mkdir -p bin
